@@ -21,3 +21,8 @@ class TestConfigurationHardening(unittest.TestCase):
         # Already covered in test_output.py but re-asserting schema
         self.assertIsNotNone(settings.SCHEMA_VERSION)
         self.assertIsNotNone(settings.RUN_ID)
+
+    def test_aqtf_threshold_defaults(self):
+        self.assertEqual(settings.CONTEXT_SCORE_MIN, 60)
+        self.assertEqual(settings.ENTRY_SCORE_MIN, 65)
+        self.assertEqual(settings.NO_CHASE_MAX_ATR, 0.6)

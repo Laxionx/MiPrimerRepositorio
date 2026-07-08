@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     MAX_TRADES_PER_DAY: int = 5
     SPREAD_LIMIT: int = 20            # in points/pips
     VOLATILITY_LIMIT: float = 0.005
+    CONTEXT_SCORE_MIN: int = 60
+    ENTRY_SCORE_MIN: int = 65
+    NO_CHASE_MAX_ATR: float = 0.6
+    CONTEXT_LOOKBACK: int = 20
 
     REWARD_RISK_RATIO: float = 2.0
     SWING_LOOKBACK: int = 20

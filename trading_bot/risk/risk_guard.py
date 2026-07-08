@@ -23,6 +23,12 @@ class SimpleRiskGuard(RiskGuard):
         setup = setup_data.get('setup')
         if not setup:
             return {"allowed": False, "reason": "No setup detected"}
+        if (
+            setup_data.get("blocked_by_context")
+            or setup_data.get("blocked_by_entry_score")
+            or setup_data.get("no_chase_blocked")
+        ):
+            return {"allowed": False, "reason": "AQTF context or entry filter blocked setup"}
 
         # Check for missing required data
         # context now contains keys: spread, volatility, connected
