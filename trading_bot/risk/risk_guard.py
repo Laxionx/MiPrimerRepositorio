@@ -1,6 +1,7 @@
 from typing import Dict, Any
 from trading_bot.core.interfaces import RiskGuard
 from trading_bot.utils.logger import logger
+from trading_bot.config.settings import settings as bot_settings
 
 class SimpleRiskGuard(RiskGuard):
     def __init__(self,
@@ -24,8 +25,16 @@ class SimpleRiskGuard(RiskGuard):
             return {"allowed": False, "reason": "No setup detected"}
 
         # Check for missing required data
-        if context.get('connected') is None or context.get('spread') is None:
-            return {"allowed": False, "reason": "Required market data missing (connection/spread)"}
+        # context now contains keys: spread, volatility, connected
+        is_spread_missing = context.get('spread') is None
+        is_volatility_missing = context.get('volatility') is None
+
+        if bot_settings.BLOCK_IF_DATA_MISSING:
+            if is_spread_missing:
+                return {"allowed": False, "reason": "Required spread data missing"}
+            if is_volatility_missing:
+                # We know MT5 currently returns None for volatility
+                return {"allowed": False, "reason": "Required volatility data missing"}
 
         # 1. Connection Check
         if not context.get('connected', False):
@@ -53,7 +62,8 @@ class SimpleRiskGuard(RiskGuard):
             "allowed": True,
             "max_risk_pct": self.max_risk_per_trade,
             "daily_loss_pct": self.daily_loss_pct,
-            "trades_today": self.trades_today
+            "trades_today": self.trades_today,
+            "data_quality": "degraded" if (is_spread_missing or is_volatility_missing) else "optimal"
         }
 
     def update_daily_stats(self, pnl_pct: float):

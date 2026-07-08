@@ -16,6 +16,7 @@ The bot operates in a strict analysis flow. It:
 - `broker_api_called` is always `false`.
 - `live_execution_enabled` is always `false`.
 - The execution path is fully decoupled and unreachable from the analysis flow.
+- **Explicit Data Provider selection**: Default is `mock`. MT5 must be explicitly enabled and configured.
 
 ## Configuration (.env)
 
@@ -23,8 +24,8 @@ The bot operates in a strict analysis flow. It:
 |----------|---------|-------------|
 | `DATA_PROVIDER` | `mock` | `mock` or `mt5` |
 | `MOCK_SCENARIO` | `no_setup` | `no_setup`, `high_sweep`, `low_sweep` |
+| `BLOCK_IF_DATA_MISSING` | `true` | Blocks setups if spread/volatility is null |
 | `ANALYSIS_ONLY` | `true` | Enforces analysis flow |
-| `MT5_LOGIN` | `null` | MT5 Account ID |
 
 ## Why Platform Agnostic?
 The core architecture is designed so that the strategy logic and risk management are independent of the broker. This allows for a future migration to institutional-grade platforms like **Sierra Chart** using the **Denali Exchange Data Feed** with minimal code changes.

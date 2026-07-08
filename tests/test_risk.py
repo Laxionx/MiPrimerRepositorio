@@ -1,5 +1,6 @@
 import unittest
 from trading_bot.risk.risk_guard import SimpleRiskGuard
+from trading_bot.config.settings import settings
 
 class TestRiskGuard(unittest.TestCase):
     def setUp(self):
@@ -10,10 +11,10 @@ class TestRiskGuard(unittest.TestCase):
             spread_limit=10,
             volatility_limit=0.01
         )
+        settings.BLOCK_IF_DATA_MISSING = False # Disable for core risk tests
 
     def test_high_spread_blocks_setup(self):
         setup_data = {"setup": {"type": "LONG"}}
-        # context now comes from provider
         context = {"connected": True, "spread": 15, "volatility": 0.001}
         report = self.risk_guard.validate_setup(setup_data, context)
         self.assertFalse(report["allowed"])
@@ -35,9 +36,10 @@ class TestRiskGuard(unittest.TestCase):
         self.assertFalse(report["allowed"])
         self.assertIn("Volatility too high", report["reason"])
 
-    def test_missing_data_blocks_setup(self):
+    def test_missing_data_blocks_setup_when_enabled(self):
+        settings.BLOCK_IF_DATA_MISSING = True
         setup_data = {"setup": {"type": "LONG"}}
-        context = {"connected": True} # Missing spread
+        context = {"connected": True, "spread": None} # Missing spread
         report = self.risk_guard.validate_setup(setup_data, context)
         self.assertFalse(report["allowed"])
-        self.assertIn("Required market data missing", report["reason"])
+        self.assertIn("spread data missing", report["reason"])

@@ -15,6 +15,7 @@ class MockPublisher(RecommendationPublisher):
 
 class TestOutputSafety(unittest.TestCase):
     def setUp(self):
+        settings.DATA_PROVIDER = "mock"
         self.publisher = MockPublisher()
         self.engine = AnalysisEngine(
             market_data=MockDataProvider(scenario="low_sweep"),
@@ -24,7 +25,6 @@ class TestOutputSafety(unittest.TestCase):
         )
 
     def test_json_never_allows_submit_even_if_analysis_only_is_false(self):
-        # Force ANALYSIS_ONLY=False
         settings.ANALYSIS_ONLY = False
 
         self.engine.run_once()

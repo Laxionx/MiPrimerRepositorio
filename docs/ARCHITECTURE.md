@@ -11,24 +11,25 @@ This project is designed as a modular lab for developing and testing algorithmic
 
 ## Hardened Configuration
 
-- `DATA_PROVIDER`: Explicitly chooses between `mock` and `mt5`. Default is `mock`.
+- `DATA_PROVIDER`: Explicitly chooses between `mock` and `mt5`. Default is `mock`. Instantiating `MT5DataProvider` requires this to be set to `mt5` AND valid credentials.
 - `MOCK_SCENARIO`: Selects deterministic data scenarios for testing (`no_setup`, `high_sweep`, `low_sweep`).
-- `ANALYSIS_ONLY`: Enforces the analysis flow.
+- `BLOCK_IF_DATA_MISSING`: Safety guard that blocks setups if market context (spread/volatility) is unavailable.
 
 ## Component Breakdown
 
 ### 1. Market Data Provider (`MarketDataProvider`)
 Responsible for fetching OHLCV data and market context (spread, volatility).
 - `MT5DataProvider`: Uses the MetaTrader5 Python package.
-- `MockDataProvider`: Generates synthetic data for testing.
+- `MockDataProvider`: Generates synthetic deterministic data for testing.
+- `Data Factory`: Centralized logic for provider selection in `trading_bot/data/factory.py`.
 
 ### 2. Signal Detector (`SignalDetector`)
 Implements strategy logic. It consumes OHLCV data and produces a potential `setup`.
-- `LiquiditySweepDetector`: Implementation detecting price sweeps of recent highs/lows.
+- `LiquiditySweepDetector`: Implementation detecting price sweeps of recent highs/lows with manual VWAP.
 
 ### 3. Risk Guard (`RiskGuard`)
 Validates setups against risk rules (max loss, spread limits, volatility).
-- `SimpleRiskGuard`: Enforces daily limits and market condition filters using context from the Data Provider.
+- `SimpleRiskGuard`: Enforces daily limits and market condition filters using context from the Data Provider. Blocks on missing data if configured.
 
 ### 4. Recommendation Publisher (`RecommendationPublisher`)
 Formats and exports the result of the analysis.

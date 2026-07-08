@@ -7,6 +7,8 @@
 - [x] Analysis-only mode (Hardened).
 - [x] JSON structured output (v1.1.0) with audit fields.
 - [x] Dynamic Market Context (Spread/Volatility).
+- [x] Data Provider Factory and Explicit Selection.
+- [x] Safety Guard for missing market context data.
 
 ## Phase 2: Enhanced Analysis Lab
 - [ ] Add Volume Profile (VP) analysis.
@@ -18,8 +20,3 @@
 - [ ] Sierra Chart / Denali integration for high-quality futures data.
 - [ ] OANDA integration for FX.
 - [ ] Interactive Brokers integration.
-
-## Phase 4: Advanced Risk & Strategy
-- [ ] Dynamic position sizing based on ATR.
-- [ ] Portfolio-level risk management.
-- [ ] Trailing stops and partial take-profits.

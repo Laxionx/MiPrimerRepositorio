@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     DATA_PROVIDER: str = "mock"  # options: mock, mt5
     MOCK_SCENARIO: str = "no_setup" # options: no_setup, high_sweep, low_sweep
+    BLOCK_IF_DATA_MISSING: bool = True
 
     SCHEMA_VERSION: str = "1.1.0"
     RUN_ID: str = str(uuid.uuid4())
