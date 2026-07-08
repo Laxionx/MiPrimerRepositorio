@@ -24,7 +24,7 @@ class TestOutputSafety(unittest.TestCase):
         )
 
     def test_json_never_allows_submit_even_if_analysis_only_is_false(self):
-        # Force ANALYSIS_ONLY=False to test engine resilience
+        # Force ANALYSIS_ONLY=False
         settings.ANALYSIS_ONLY = False
 
         self.engine.run_once()
@@ -36,24 +36,23 @@ class TestOutputSafety(unittest.TestCase):
         self.assertFalse(rec["live_execution_enabled"])
         self.assertFalse(rec["broker_api_called"])
 
-        # Reset settings
         settings.ANALYSIS_ONLY = True
 
-    def test_broker_api_called_is_always_false(self):
-        self.engine.run_once()
-        rec = self.publisher.last_recommendation
-        self.assertFalse(rec["broker_api_called"])
-
-    def test_json_structure_matches_requirements(self):
+    def test_json_structure_v1_1_0(self):
         self.engine.run_once()
         rec = self.publisher.last_recommendation
 
         required_keys = [
-            "symbol", "timeframe", "timestamp", "market_context",
-            "liquidity", "vwap", "volume_profile", "order_flow",
-            "setup", "risk", "command", "submit_allowed",
+            "schema_version", "run_id", "mode", "data_provider",
+            "generated_at", "symbol", "timeframe", "market_context",
+            "market_context_live", "liquidity", "vwap", "volume_profile",
+            "order_flow", "setup", "risk", "command", "submit_allowed",
             "broker_api_called", "live_execution_enabled"
         ]
 
         for key in required_keys:
             self.assertIn(key, rec)
+
+        self.assertEqual(rec["schema_version"], "1.1.0")
+        self.assertEqual(rec["mode"], "analysis_only")
+        self.assertEqual(rec["data_provider"], "mock")

@@ -1,32 +1,30 @@
 # Modular Python Trading Lab
 
-A modular, platform-agnostic algorithmic trading lab designed for research, analysis, and automated execution.
+A hardened, modular, platform-agnostic algorithmic trading lab designed for research and analysis.
 
 ## Modes of Operation
 
-The bot is designed to prioritize safety and auditability.
-
-### 1. Analysis-Only Mode (Default)
-In this mode (`ANALYSIS_ONLY=true`), the bot:
-- Fetches market data.
-- Runs signal detection.
-- Passes setups through risk guards.
+### 1. Analysis-Only Mode (Strict Default)
+The bot operates in a strict analysis flow. It:
+- Fetches market data (Mock or MT5).
+- Runs signal detection (Liquidity Sweeps).
+- Passes setups through risk guards (Spread, Volatility, Session Limits).
 - **Publishes a structured JSON recommendation to `output/`.**
-- **Never calls broker APIs.**
-- **Does not execute trades.**
 
-### 2. Dry-Run Mode
-When `ANALYSIS_ONLY=false` and `LIVE_TRADING=false`, the bot:
-- Operates normally but uses the `DryRunExecutor`.
-- Simulates execution in the logs without sending real orders.
+**Safety Guarantees:**
+- `submit_allowed` is always `false`.
+- `broker_api_called` is always `false`.
+- `live_execution_enabled` is always `false`.
+- The execution path is fully decoupled and unreachable from the analysis flow.
 
-### 3. Live Trading Mode
-When `ANALYSIS_ONLY=false` and `LIVE_TRADING=true`, the bot:
-- Sends real orders to the configured broker (e.g., MetaTrader 5).
-- **Requires valid credentials and explicit user enablement.**
+## Configuration (.env)
 
-## Why MetaTrader 5 (MT5)?
-MT5 is used as the first operational lab environment because it provides an easy-to-use Python API for both data and execution across many asset classes.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATA_PROVIDER` | `mock` | `mock` or `mt5` |
+| `MOCK_SCENARIO` | `no_setup` | `no_setup`, `high_sweep`, `low_sweep` |
+| `ANALYSIS_ONLY` | `true` | Enforces analysis flow |
+| `MT5_LOGIN` | `null` | MT5 Account ID |
 
 ## Why Platform Agnostic?
 The core architecture is designed so that the strategy logic and risk management are independent of the broker. This allows for a future migration to institutional-grade platforms like **Sierra Chart** using the **Denali Exchange Data Feed** with minimal code changes.
@@ -38,7 +36,7 @@ The core architecture is designed so that the strategy logic and risk management
    pip install -r requirements.txt
    ```
 2. Copy `.env.example` to `.env`.
-3. Run the lab in analysis mode:
+3. Run the lab:
    ```bash
    python main.py
    ```
@@ -51,5 +49,5 @@ The core architecture is designed so that the strategy logic and risk management
 Run the suite with:
 ```bash
 export PYTHONPATH=$PYTHONPATH:.
-python -m unittest discover tests
+python -m pytest tests -q
 ```

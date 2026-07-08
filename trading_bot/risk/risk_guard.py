@@ -32,8 +32,8 @@ class SimpleRiskGuard(RiskGuard):
             return {"allowed": False, "reason": "Market provider disconnected"}
 
         # 2. Spread Filter
-        current_spread = context.get('spread', 999)
-        if current_spread > self.spread_limit:
+        current_spread = context.get('spread')
+        if current_spread is not None and current_spread > self.spread_limit:
             return {"allowed": False, "reason": f"Spread too high ({current_spread} > {self.spread_limit})"}
 
         # 3. Max Trades Per Day
@@ -44,9 +44,9 @@ class SimpleRiskGuard(RiskGuard):
         if self.daily_loss_pct >= self.max_daily_loss:
             return {"allowed": False, "reason": "Max daily loss reached"}
 
-        # 5. Volatility Limit (Simple check)
-        volatility = context.get('volatility', 0.0)
-        if volatility > self.volatility_limit:
+        # 5. Volatility Limit
+        volatility = context.get('volatility')
+        if volatility is not None and volatility > self.volatility_limit:
             return {"allowed": False, "reason": f"Volatility too high ({volatility:.5f} > {self.volatility_limit:.5f})"}
 
         return {

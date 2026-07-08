@@ -9,6 +9,11 @@ class MarketDataProvider(ABC):
         pass
 
     @abstractmethod
+    def get_market_context(self, symbol: str) -> Dict[str, Any]:
+        """Fetch current market context (spread, volatility, etc.)."""
+        pass
+
+    @abstractmethod
     def is_connected(self) -> bool:
         """Check if the data provider is connected."""
         pass

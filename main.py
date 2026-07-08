@@ -6,24 +6,31 @@ from trading_bot.data.mt5_data import MT5DataProvider
 from trading_bot.data.mock_data import MockDataProvider
 from trading_bot.signals.liquidity_sweep import LiquiditySweepDetector
 from trading_bot.risk.risk_guard import SimpleRiskGuard
-from trading_bot.output.json_publisher import JSONRecommendationPublisher, ConsolePublisher
+from trading_bot.output.json_publisher import JSONRecommendationPublisher
 from trading_bot.core.engine import AnalysisEngine
 
 def main():
     load_dotenv()
 
-    logger.info("Initializing Modular Trading Lab (Analysis-Only)...")
+    logger.info("Initializing Modular Trading Lab (Analysis-Only Hardening)...")
+    logger.info(f"Run ID: {settings.RUN_ID}")
+    logger.info(f"Data Provider: {settings.DATA_PROVIDER}")
 
-    # Market Data
-    # In this lab version, we prefer Mock data unless explicitly configured for MT5 data retrieval.
-    if settings.MT5_LOGIN and settings.MT5_PASSWORD:
+    # Explicit Data Provider Selection
+    if settings.DATA_PROVIDER == "mt5":
+        if not settings.MT5_LOGIN or not settings.MT5_PASSWORD:
+            logger.error("MT5_LOGIN and MT5_PASSWORD are required for DATA_PROVIDER=mt5")
+            return
+
         market_data = MT5DataProvider(
             login=settings.MT5_LOGIN,
             password=settings.MT5_PASSWORD,
             server=settings.MT5_SERVER
         )
     else:
-        market_data = MockDataProvider()
+        # Default to mock
+        logger.info(f"Mock Scenario: {settings.MOCK_SCENARIO}")
+        market_data = MockDataProvider(scenario=settings.MOCK_SCENARIO)
 
     # Signal Detector
     signal_detector = LiquiditySweepDetector(
@@ -43,7 +50,7 @@ def main():
     # Publisher
     publisher = JSONRecommendationPublisher()
 
-    # Engine (Executor removed from analysis-only lab flow)
+    # Engine (Executor strictly removed)
     engine = AnalysisEngine(
         market_data=market_data,
         signal_detector=signal_detector,

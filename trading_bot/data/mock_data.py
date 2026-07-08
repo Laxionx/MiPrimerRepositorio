@@ -1,11 +1,10 @@
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict, Any
 from trading_bot.core.interfaces import MarketDataProvider
 
 class MockDataProvider(MarketDataProvider):
-    def __init__(self, scenario: Optional[str] = None):
+    def __init__(self, scenario: Optional[str] = "no_setup"):
         self._last_error = ""
         self.scenario = scenario
 
@@ -14,25 +13,19 @@ class MockDataProvider(MarketDataProvider):
         dates.reverse()
 
         if self.scenario == "low_sweep":
-            # Deterministic low sweep: recent low 9.0, last bar low 8.5, close 9.5
             highs = [11.0] * count
             lows = [10.0] * count
-            lows[count//2] = 9.0 # Recent low
+            lows[count//2] = 9.0
             closes = [10.5] * count
-
-            # Last bar sweeps
             lows[-1] = 8.5
             closes[-1] = 9.5
             volumes = [100] * count
 
         elif self.scenario == "high_sweep":
-            # Deterministic high sweep: recent high 11.0, last bar high 11.5, close 10.5
             highs = [10.0] * count
-            highs[count//2] = 11.0 # Recent high
+            highs[count//2] = 11.0
             lows = [9.0] * count
             closes = [9.5] * count
-
-            # Last bar sweeps
             highs[-1] = 11.5
             closes[-1] = 10.5
             volumes = [100] * count
@@ -53,6 +46,13 @@ class MockDataProvider(MarketDataProvider):
             'real_volume': volumes
         })
         return df
+
+    def get_market_context(self, symbol: str) -> Dict[str, Any]:
+        return {
+            "spread": 5.0,
+            "volatility": 0.001,
+            "connected": True
+        }
 
     def is_connected(self) -> bool:
         return True

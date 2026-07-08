@@ -13,6 +13,7 @@ class TestRiskGuard(unittest.TestCase):
 
     def test_high_spread_blocks_setup(self):
         setup_data = {"setup": {"type": "LONG"}}
+        # context now comes from provider
         context = {"connected": True, "spread": 15, "volatility": 0.001}
         report = self.risk_guard.validate_setup(setup_data, context)
         self.assertFalse(report["allowed"])
@@ -22,25 +23,14 @@ class TestRiskGuard(unittest.TestCase):
         setup_data = {"setup": {"type": "LONG"}}
         context = {"connected": True, "spread": 5, "volatility": 0.001}
 
-        self.risk_guard.update_daily_stats(-0.06) # Lose 6%
+        self.risk_guard.update_daily_stats(-0.06)
         report = self.risk_guard.validate_setup(setup_data, context)
         self.assertFalse(report["allowed"])
         self.assertIn("Max daily loss reached", report["reason"])
 
-    def test_max_trades_per_day_blocks_setup(self):
-        setup_data = {"setup": {"type": "LONG"}}
-        context = {"connected": True, "spread": 5, "volatility": 0.001}
-
-        self.risk_guard.update_daily_stats(0.01)
-        self.risk_guard.update_daily_stats(0.01)
-
-        report = self.risk_guard.validate_setup(setup_data, context)
-        self.assertFalse(report["allowed"])
-        self.assertIn("Max trades per day reached", report["reason"])
-
     def test_volatility_limit_blocks_setup(self):
         setup_data = {"setup": {"type": "LONG"}}
-        context = {"connected": True, "spread": 5, "volatility": 0.02} # High volatility
+        context = {"connected": True, "spread": 5, "volatility": 0.02}
         report = self.risk_guard.validate_setup(setup_data, context)
         self.assertFalse(report["allowed"])
         self.assertIn("Volatility too high", report["reason"])

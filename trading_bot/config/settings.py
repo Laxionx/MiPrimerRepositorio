@@ -1,9 +1,16 @@
+import uuid
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 class Settings(BaseSettings):
     ANALYSIS_ONLY: bool = True  # Default to analysis-only mode
     LIVE_TRADING: bool = False
+
+    DATA_PROVIDER: str = "mock"  # options: mock, mt5
+    MOCK_SCENARIO: str = "no_setup" # options: no_setup, high_sweep, low_sweep
+
+    SCHEMA_VERSION: str = "1.1.0"
+    RUN_ID: str = str(uuid.uuid4())
 
     MT5_LOGIN: Optional[int] = None
     MT5_PASSWORD: Optional[str] = None

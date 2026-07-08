@@ -29,21 +29,22 @@ class AnalysisEngine:
             # 1. Detect Signals
             signal_report = self.signal_detector.detect_signals(data)
 
-            # 2. Risk Guarding
-            context = {
-                'connected': self.market_data.is_connected(),
-                'spread': 5,
-                'volatility': 0.001
-            }
-            risk_report = self.risk_guard.validate_setup(signal_report, context)
+            # 2. Risk Guarding (Using dynamic market context)
+            market_context = self.market_data.get_market_context(settings.SYMBOL)
+            risk_report = self.risk_guard.validate_setup(signal_report, market_context)
 
             # 3. Create Recommendation with Absolute Safety Fields
-            # Live execution is removed from this engine flow.
             recommendation = {
+                "schema_version": settings.SCHEMA_VERSION,
+                "run_id": settings.RUN_ID,
+                "mode": "analysis_only",
+                "data_provider": settings.DATA_PROVIDER,
+                "mock_scenario": settings.MOCK_SCENARIO if settings.DATA_PROVIDER == "mock" else None,
+                "generated_at": datetime.now().isoformat(),
                 "symbol": settings.SYMBOL,
                 "timeframe": settings.TIMEFRAME,
-                "timestamp": datetime.now().isoformat(),
                 "market_context": signal_report.get("market_context"),
+                "market_context_live": market_context,
                 "liquidity": signal_report.get("liquidity"),
                 "vwap": signal_report.get("vwap"),
                 "volume_profile": signal_report.get("volume_profile"),
@@ -63,7 +64,7 @@ class AnalysisEngine:
             logger.error(f"Error in analysis engine loop: {e}", exc_info=True)
 
     def start(self, interval: int = 60):
-        logger.info("Starting Algorithmic Trading Lab Engine (Analysis Only)...")
+        logger.info(f"Starting Algorithmic Trading Lab Engine (Mode: analysis_only, Provider: {settings.DATA_PROVIDER})...")
         self.running = True
         while self.running:
             self.run_once()

@@ -1,4 +1,5 @@
 import pandas as pd
+from typing import Dict, Any
 try:
     import MetaTrader5 as mt5
 except ImportError:
@@ -41,6 +42,21 @@ class MT5DataProvider(MarketDataProvider):
         df = pd.DataFrame(rates)
         df['time'] = pd.to_datetime(df['time'], unit='s')
         return df
+
+    def get_market_context(self, symbol: str) -> Dict[str, Any]:
+        if not self.initialized:
+            if not self.connect():
+                return {"spread": None, "volatility": None, "error": "Not connected"}
+
+        symbol_info = mt5.symbol_info(symbol)
+        if symbol_info is None:
+            return {"spread": None, "volatility": None, "error": "Symbol info unavailable"}
+
+        return {
+            "spread": float(symbol_info.spread),
+            "volatility": None,
+            "connected": self.is_connected()
+        }
 
     def is_connected(self) -> bool:
         if mt5 is None: return False
