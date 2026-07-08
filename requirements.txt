@@ -1,0 +1,7 @@
+pandas
+pandas-ta
+python-dotenv
+pydantic
+pydantic-settings
+pyyaml
+# MetaTrader5  # Only available on Windows

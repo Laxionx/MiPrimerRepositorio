@@ -1,0 +1,54 @@
+import pandas as pd
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    mt5 = None
+
+from trading_bot.core.interfaces import DataProvider
+from trading_bot.utils.logger import logger
+
+class MT5DataProvider(DataProvider):
+    def __init__(self, login, password, server):
+        self.login = login
+        self.password = password
+        self.server = server
+        self.initialized = False
+
+    def connect(self):
+        if mt5 is None:
+            logger.error("MetaTrader5 package not installed or not supported on this OS.")
+            return False
+
+        if not mt5.initialize(login=self.login, password=self.password, server=self.server):
+            logger.error(f"Failed to initialize MT5: {mt5.last_error()}")
+            return False
+
+        self.initialized = True
+        return True
+
+    def get_ohlc(self, symbol: str, timeframe: str, count: int) -> pd.DataFrame:
+        if not self.initialized:
+            if not self.connect():
+                return pd.DataFrame()
+
+        # Map string timeframe to MT5 constant if needed, but for now assume correct constant
+        # In a real app, we'd have a mapping dict.
+        tf = getattr(mt5, timeframe, mt5.TIMEFRAME_M5)
+
+        rates = mt5.copy_rates_from_pos(symbol, tf, 0, count)
+        if rates is None or len(rates) == 0:
+            logger.error(f"Failed to get rates for {symbol}: {mt5.last_error()}")
+            return pd.DataFrame()
+
+        df = pd.DataFrame(rates)
+        df['time'] = pd.to_datetime(df['time'], unit='s')
+        return df
+
+    def is_connected(self) -> bool:
+        if mt5 is None: return False
+        terminal_info = mt5.terminal_info()
+        return terminal_info.connected if terminal_info else False
+
+    def get_last_error(self) -> str:
+        if mt5 is None: return "MT5 not installed"
+        return str(mt5.last_error())
