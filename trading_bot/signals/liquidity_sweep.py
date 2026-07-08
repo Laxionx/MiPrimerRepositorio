@@ -1,5 +1,4 @@
 import pandas as pd
-import pandas_ta as ta
 from typing import Dict, Any
 from trading_bot.core.interfaces import SignalDetector
 from trading_bot.utils.logger import logger
@@ -15,11 +14,14 @@ class LiquiditySweepDetector(SignalDetector):
 
         df = data.copy()
 
-        # Calculate VWAP
-        if 'time' in df.columns:
-            df.set_index('time', inplace=True)
+        # Manual VWAP Calculation
+        # typical_price = (high + low + close) / 3
+        # vwap = (typical_price * volume).cumsum() / volume.cumsum()
 
-        df['vwap'] = ta.vwap(df.high, df.low, df.close, df.tick_volume)
+        typical_price = (df['high'] + df['low'] + df['close']) / 3
+        volume = df['tick_volume']
+
+        df['vwap'] = (typical_price * volume).cumsum() / volume.cumsum()
 
         current_bar = df.iloc[-1]
         lookback_df = df.iloc[-(self.lookback+1):-1]
@@ -29,7 +31,7 @@ class LiquiditySweepDetector(SignalDetector):
 
         market_context = {
             "current_price": float(current_bar['close']),
-            "vwap": float(current_bar['vwap']) if not pd.isna(current_bar['vwap']) else None,
+            "vwap": float(current_bar['vwap']),
             "recent_high": float(recent_high),
             "recent_low": float(recent_low)
         }

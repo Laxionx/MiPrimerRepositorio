@@ -1,26 +1,51 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+from typing import Optional
 from trading_bot.core.interfaces import MarketDataProvider
 
 class MockDataProvider(MarketDataProvider):
-    def __init__(self):
+    def __init__(self, scenario: Optional[str] = None):
         self._last_error = ""
+        self.scenario = scenario
 
     def get_ohlcv(self, symbol: str, timeframe: str, count: int) -> pd.DataFrame:
         dates = [datetime.now() - timedelta(minutes=5*i) for i in range(count)]
         dates.reverse()
 
-        base_price = 1.1000
-        closes = base_price + np.cumsum(np.random.normal(0, 0.0001, count))
-        opens = closes - np.random.normal(0, 0.0001, count)
-        highs = np.maximum(opens, closes) + np.random.uniform(0, 0.0002, count)
-        lows = np.minimum(opens, closes) - np.random.uniform(0, 0.0002, count)
-        volumes = np.random.randint(100, 1000, count)
+        if self.scenario == "low_sweep":
+            # Deterministic low sweep: recent low 9.0, last bar low 8.5, close 9.5
+            highs = [11.0] * count
+            lows = [10.0] * count
+            lows[count//2] = 9.0 # Recent low
+            closes = [10.5] * count
+
+            # Last bar sweeps
+            lows[-1] = 8.5
+            closes[-1] = 9.5
+            volumes = [100] * count
+
+        elif self.scenario == "high_sweep":
+            # Deterministic high sweep: recent high 11.0, last bar high 11.5, close 10.5
+            highs = [10.0] * count
+            highs[count//2] = 11.0 # Recent high
+            lows = [9.0] * count
+            closes = [9.5] * count
+
+            # Last bar sweeps
+            highs[-1] = 11.5
+            closes[-1] = 10.5
+            volumes = [100] * count
+
+        else: # no_setup
+            highs = [11.0] * count
+            lows = [9.0] * count
+            closes = [10.0] * count
+            volumes = [100] * count
 
         df = pd.DataFrame({
             'time': dates,
-            'open': opens,
+            'open': [c - 0.1 for c in closes],
             'high': highs,
             'low': lows,
             'close': closes,

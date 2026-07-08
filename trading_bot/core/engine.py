@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 from typing import Dict, Any, Optional
-from trading_bot.core.interfaces import MarketDataProvider, SignalDetector, RiskGuard, RecommendationPublisher, Executor
+from trading_bot.core.interfaces import MarketDataProvider, SignalDetector, RiskGuard, RecommendationPublisher
 from trading_bot.utils.logger import logger
 from trading_bot.config.settings import settings
 
@@ -10,13 +10,11 @@ class AnalysisEngine:
                  market_data: MarketDataProvider,
                  signal_detector: SignalDetector,
                  risk_guard: RiskGuard,
-                 publisher: RecommendationPublisher,
-                 executor: Optional[Executor] = None):
+                 publisher: RecommendationPublisher):
         self.market_data = market_data
         self.signal_detector = signal_detector
         self.risk_guard = risk_guard
         self.publisher = publisher
-        self.executor = executor
         self.running = False
 
     def run_once(self):
@@ -34,12 +32,13 @@ class AnalysisEngine:
             # 2. Risk Guarding
             context = {
                 'connected': self.market_data.is_connected(),
-                'spread': 5, # Simulated spread
-                'volatility': 0.001 # Simulated volatility
+                'spread': 5,
+                'volatility': 0.001
             }
             risk_report = self.risk_guard.validate_setup(signal_report, context)
 
             # 3. Create Recommendation with Absolute Safety Fields
+            # Live execution is removed from this engine flow.
             recommendation = {
                 "symbol": settings.SYMBOL,
                 "timeframe": settings.TIMEFRAME,
@@ -54,35 +53,17 @@ class AnalysisEngine:
                 "command": None,
                 "submit_allowed": False,
                 "broker_api_called": False,
-                "live_execution_enabled": False # Strictly false in analysis-only lab
+                "live_execution_enabled": False
             }
 
-            # 4. Execution Logic (only if NOT in analysis-only mode)
-            if not settings.ANALYSIS_ONLY:
-                if self.executor and risk_report.get("allowed"):
-                    logger.info("Executing recommendation...")
-                    success = self.executor.execute(recommendation)
-                    if success:
-                        recommendation["broker_api_called"] = True
-                        if settings.LIVE_TRADING:
-                            recommendation["live_execution_enabled"] = True
-                            recommendation["command"] = "order_sent"
-                        else:
-                            recommendation["command"] = "dry_run_simulated"
-
-                        if hasattr(self.risk_guard, 'update_daily_stats'):
-                            self.risk_guard.update_daily_stats(0.0)
-            else:
-                logger.debug("Analysis-only mode: skipping execution.")
-
-            # 5. Publish
+            # 4. Publish
             self.publisher.publish(recommendation)
 
         except Exception as e:
             logger.error(f"Error in analysis engine loop: {e}", exc_info=True)
 
     def start(self, interval: int = 60):
-        logger.info("Starting Algorithmic Trading Lab Engine...")
+        logger.info("Starting Algorithmic Trading Lab Engine (Analysis Only)...")
         self.running = True
         while self.running:
             self.run_once()

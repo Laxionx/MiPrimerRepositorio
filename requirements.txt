@@ -1,5 +1,4 @@
 pandas
-pandas-ta
 python-dotenv
 pydantic
 pydantic-settings

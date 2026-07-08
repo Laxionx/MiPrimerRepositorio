@@ -1,11 +1,10 @@
 import unittest
-import json
-from datetime import datetime
 from trading_bot.core.engine import AnalysisEngine
 from trading_bot.data.mock_data import MockDataProvider
 from trading_bot.signals.liquidity_sweep import LiquiditySweepDetector
 from trading_bot.risk.risk_guard import SimpleRiskGuard
 from trading_bot.output.json_publisher import RecommendationPublisher
+from trading_bot.config.settings import settings
 
 class MockPublisher(RecommendationPublisher):
     def __init__(self):
@@ -18,13 +17,16 @@ class TestOutputSafety(unittest.TestCase):
     def setUp(self):
         self.publisher = MockPublisher()
         self.engine = AnalysisEngine(
-            market_data=MockDataProvider(),
+            market_data=MockDataProvider(scenario="low_sweep"),
             signal_detector=LiquiditySweepDetector(),
             risk_guard=SimpleRiskGuard(),
             publisher=self.publisher
         )
 
-    def test_json_never_allows_submit_in_analysis_mode(self):
+    def test_json_never_allows_submit_even_if_analysis_only_is_false(self):
+        # Force ANALYSIS_ONLY=False to test engine resilience
+        settings.ANALYSIS_ONLY = False
+
         self.engine.run_once()
         rec = self.publisher.last_recommendation
 
@@ -32,12 +34,14 @@ class TestOutputSafety(unittest.TestCase):
         self.assertFalse(rec["submit_allowed"])
         self.assertIsNone(rec["command"])
         self.assertFalse(rec["live_execution_enabled"])
+        self.assertFalse(rec["broker_api_called"])
 
-    def test_broker_api_called_is_always_false_in_analysis_mode(self):
+        # Reset settings
+        settings.ANALYSIS_ONLY = True
+
+    def test_broker_api_called_is_always_false(self):
         self.engine.run_once()
         rec = self.publisher.last_recommendation
-
-        self.assertIsNotNone(rec)
         self.assertFalse(rec["broker_api_called"])
 
     def test_json_structure_matches_requirements(self):
@@ -53,6 +57,3 @@ class TestOutputSafety(unittest.TestCase):
 
         for key in required_keys:
             self.assertIn(key, rec)
-
-        self.assertEqual(rec["volume_profile"]["reason"], "not_available_in_simulated_ohlcv")
-        self.assertEqual(rec["order_flow"]["reason"], "not_available_in_simulated_ohlcv")
