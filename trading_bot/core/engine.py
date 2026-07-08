@@ -1,61 +1,88 @@
 import time
-from trading_bot.core.interfaces import DataProvider, Strategy, Executor, RiskManager
+from datetime import datetime
+from typing import Dict, Any, Optional
+from trading_bot.core.interfaces import MarketDataProvider, SignalDetector, RiskGuard, RecommendationPublisher, Executor
 from trading_bot.utils.logger import logger
 from trading_bot.config.settings import settings
 
-class TradingEngine:
+class AnalysisEngine:
     def __init__(self,
-                 data_provider: DataProvider,
-                 strategy: Strategy,
-                 executor: Executor,
-                 risk_manager: RiskManager):
-        self.data_provider = data_provider
-        self.strategy = strategy
+                 market_data: MarketDataProvider,
+                 signal_detector: SignalDetector,
+                 risk_guard: RiskGuard,
+                 publisher: RecommendationPublisher,
+                 executor: Optional[Executor] = None):
+        self.market_data = market_data
+        self.signal_detector = signal_detector
+        self.risk_guard = risk_guard
+        self.publisher = publisher
         self.executor = executor
-        self.risk_manager = risk_manager
         self.running = False
 
     def run_once(self):
         try:
             logger.debug(f"Fetching data for {settings.SYMBOL}...")
-            data = self.data_provider.get_ohlc(settings.SYMBOL, settings.TIMEFRAME, settings.SWING_LOOKBACK + 5)
+            data = self.market_data.get_ohlcv(settings.SYMBOL, settings.TIMEFRAME, settings.SWING_LOOKBACK + 5)
 
             if data.empty:
-                logger.warning("No data received from provider.")
+                logger.warning("No data received from market data provider.")
                 return
 
-            signal = self.strategy.generate_signal(data)
+            # 1. Detect Signals
+            signal_report = self.signal_detector.detect_signals(data)
 
-            if signal['action'] != "HOLD":
-                logger.info(f"Signal generated: {signal}")
+            # 2. Risk Guarding
+            context = {
+                'connected': self.market_data.is_connected(),
+                'spread': 5, # Mock/Simulated spread
+                'volatility': 0.001 # Mock volatility
+            }
+            risk_report = self.risk_guard.validate_setup(signal_report, context)
 
-                # In a more advanced version, these would come from the data_provider
-                context = {
-                    'connected': self.data_provider.is_connected(),
-                    'spread': 5,
-                }
+            # 3. Create Recommendation
+            recommendation = {
+                "symbol": settings.SYMBOL,
+                "timeframe": settings.TIMEFRAME,
+                "timestamp": datetime.now().isoformat(),
+                "market_context": signal_report.get("market_context"),
+                "liquidity": signal_report.get("liquidity"),
+                "vwap": signal_report.get("vwap"),
+                "volume_profile": signal_report.get("volume_profile"),
+                "order_flow": signal_report.get("order_flow"),
+                "setup": signal_report.get("setup"),
+                "risk": risk_report,
+                "command": None,
+                "submit_allowed": False,
+                "broker_api_called": False,
+                "live_execution_enabled": settings.LIVE_TRADING
+            }
 
-                if self.risk_manager.validate_trade(signal, context):
-                    success = self.executor.execute(signal)
-                    if success:
-                        # Update stats (assuming 0 for PnL for now as it's just opened)
-                        if hasattr(self.risk_manager, 'update_daily_stats'):
-                            self.risk_manager.update_daily_stats(0.0)
-                else:
-                    logger.info("Trade rejected by Risk Manager.")
-            else:
-                logger.debug("Strategy: HOLD")
+            # 4. Execution Logic (if not in analysis-only mode)
+            if not settings.ANALYSIS_ONLY and self.executor and risk_report.get("allowed"):
+                logger.info("Executing recommendation...")
+                success = self.executor.execute(recommendation)
+                if success:
+                    recommendation["broker_api_called"] = True
+                    if settings.LIVE_TRADING:
+                        recommendation["command"] = "order_sent"
+                    else:
+                        recommendation["command"] = "dry_run_simulated"
+
+                    if hasattr(self.risk_guard, 'update_daily_stats'):
+                        self.risk_guard.update_daily_stats(0.0)
+
+            # 5. Publish
+            self.publisher.publish(recommendation)
 
         except Exception as e:
-            logger.error(f"Error in engine loop: {e}", exc_info=True)
+            logger.error(f"Error in analysis engine loop: {e}", exc_info=True)
 
-    def start(self, interval: int = 10):
-        logger.info("Starting Trading Engine...")
+    def start(self, interval: int = 60):
+        logger.info("Starting Algorithmic Trading Lab Engine...")
         self.running = True
         while self.running:
             self.run_once()
             time.sleep(interval)
 
     def stop(self):
-        logger.info("Stopping Trading Engine...")
         self.running = False

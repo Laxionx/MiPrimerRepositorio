@@ -1,18 +1,16 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from trading_bot.core.interfaces import DataProvider
+from trading_bot.core.interfaces import MarketDataProvider
 
-class MockDataProvider(DataProvider):
+class MockDataProvider(MarketDataProvider):
     def __init__(self):
         self._last_error = ""
 
-    def get_ohlc(self, symbol: str, timeframe: str, count: int) -> pd.DataFrame:
-        # Generate some synthetic data that looks like it could have liquidity sweeps
+    def get_ohlcv(self, symbol: str, timeframe: str, count: int) -> pd.DataFrame:
         dates = [datetime.now() - timedelta(minutes=5*i) for i in range(count)]
         dates.reverse()
 
-        # Simple random walk for mock data
         base_price = 1.1000
         closes = base_price + np.cumsum(np.random.normal(0, 0.0001, count))
         opens = closes - np.random.normal(0, 0.0001, count)

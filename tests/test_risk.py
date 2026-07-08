@@ -1,50 +1,53 @@
 import unittest
-from trading_bot.risk.risk_manager import SimpleRiskManager
+from trading_bot.risk.risk_guard import SimpleRiskGuard
 
-class TestRiskManager(unittest.TestCase):
+class TestRiskGuard(unittest.TestCase):
     def setUp(self):
-        self.risk_manager = SimpleRiskManager(
+        self.risk_guard = SimpleRiskGuard(
             max_risk_per_trade=0.01,
             max_daily_loss=0.05,
             max_trades_per_day=2,
-            spread_filter=10
+            spread_limit=10,
+            volatility_limit=0.01
         )
 
-    def test_validate_trade_connected(self):
-        signal = {"action": "BUY", "price": 1.1000}
+    def test_high_spread_blocks_setup(self):
+        setup_data = {"setup": {"type": "LONG"}}
+        context = {"connected": True, "spread": 15, "volatility": 0.001}
+        report = self.risk_guard.validate_setup(setup_data, context)
+        self.assertFalse(report["allowed"])
+        self.assertIn("Spread too high", report["reason"])
 
-        # Test disconnected
-        context = {"connected": False, "spread": 5}
-        self.assertFalse(self.risk_manager.validate_trade(signal, context))
+    def test_max_daily_loss_blocks_setup(self):
+        setup_data = {"setup": {"type": "LONG"}}
+        context = {"connected": True, "spread": 5, "volatility": 0.001}
 
-        # Test connected
-        context = {"connected": True, "spread": 5}
-        self.assertTrue(self.risk_manager.validate_trade(signal, context))
+        self.risk_guard.update_daily_stats(-0.06) # Lose 6%
+        report = self.risk_guard.validate_setup(setup_data, context)
+        self.assertFalse(report["allowed"])
+        self.assertIn("Max daily loss reached", report["reason"])
 
-    def test_spread_filter(self):
-        signal = {"action": "BUY", "price": 1.1000}
-        context = {"connected": True, "spread": 15} # Higher than 10
-        self.assertFalse(self.risk_manager.validate_trade(signal, context))
+    def test_max_trades_per_day_blocks_setup(self):
+        setup_data = {"setup": {"type": "LONG"}}
+        context = {"connected": True, "spread": 5, "volatility": 0.001}
 
-    def test_max_trades_per_day(self):
-        signal = {"action": "BUY", "price": 1.1000}
-        context = {"connected": True, "spread": 5}
+        self.risk_guard.update_daily_stats(0.01)
+        self.risk_guard.update_daily_stats(0.01)
 
-        # 1st trade
-        self.assertTrue(self.risk_manager.validate_trade(signal, context))
-        self.risk_manager.update_daily_stats(0.01)
+        report = self.risk_guard.validate_setup(setup_data, context)
+        self.assertFalse(report["allowed"])
+        self.assertIn("Max trades per day reached", report["reason"])
 
-        # 2nd trade
-        self.assertTrue(self.risk_manager.validate_trade(signal, context))
-        self.risk_manager.update_daily_stats(0.01)
+    def test_volatility_limit_blocks_setup(self):
+        setup_data = {"setup": {"type": "LONG"}}
+        context = {"connected": True, "spread": 5, "volatility": 0.02} # High volatility
+        report = self.risk_guard.validate_setup(setup_data, context)
+        self.assertFalse(report["allowed"])
+        self.assertIn("Volatility too high", report["reason"])
 
-        # 3rd trade - should be blocked
-        self.assertFalse(self.risk_manager.validate_trade(signal, context))
-
-    def test_max_daily_loss(self):
-        signal = {"action": "BUY", "price": 1.1000}
-        context = {"connected": True, "spread": 5}
-
-        # Lose 6% (max is 5%)
-        self.risk_manager.update_daily_stats(-0.06)
-        self.assertFalse(self.risk_manager.validate_trade(signal, context))
+    def test_missing_data_blocks_setup(self):
+        setup_data = {"setup": {"type": "LONG"}}
+        context = {"connected": True} # Missing spread
+        report = self.risk_guard.validate_setup(setup_data, context)
+        self.assertFalse(report["allowed"])
+        self.assertIn("Required market data missing", report["reason"])

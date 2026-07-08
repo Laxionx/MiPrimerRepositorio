@@ -4,10 +4,10 @@ try:
 except ImportError:
     mt5 = None
 
-from trading_bot.core.interfaces import DataProvider
+from trading_bot.core.interfaces import MarketDataProvider
 from trading_bot.utils.logger import logger
 
-class MT5DataProvider(DataProvider):
+class MT5DataProvider(MarketDataProvider):
     def __init__(self, login, password, server):
         self.login = login
         self.password = password
@@ -26,13 +26,11 @@ class MT5DataProvider(DataProvider):
         self.initialized = True
         return True
 
-    def get_ohlc(self, symbol: str, timeframe: str, count: int) -> pd.DataFrame:
+    def get_ohlcv(self, symbol: str, timeframe: str, count: int) -> pd.DataFrame:
         if not self.initialized:
             if not self.connect():
                 return pd.DataFrame()
 
-        # Map string timeframe to MT5 constant if needed, but for now assume correct constant
-        # In a real app, we'd have a mapping dict.
         tf = getattr(mt5, timeframe, mt5.TIMEFRAME_M5)
 
         rates = mt5.copy_rates_from_pos(symbol, tf, 0, count)
