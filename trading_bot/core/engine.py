@@ -34,12 +34,12 @@ class AnalysisEngine:
             # 2. Risk Guarding
             context = {
                 'connected': self.market_data.is_connected(),
-                'spread': 5, # Mock/Simulated spread
-                'volatility': 0.001 # Mock volatility
+                'spread': 5, # Simulated spread
+                'volatility': 0.001 # Simulated volatility
             }
             risk_report = self.risk_guard.validate_setup(signal_report, context)
 
-            # 3. Create Recommendation
+            # 3. Create Recommendation with Absolute Safety Fields
             recommendation = {
                 "symbol": settings.SYMBOL,
                 "timeframe": settings.TIMEFRAME,
@@ -54,22 +54,26 @@ class AnalysisEngine:
                 "command": None,
                 "submit_allowed": False,
                 "broker_api_called": False,
-                "live_execution_enabled": settings.LIVE_TRADING
+                "live_execution_enabled": False # Strictly false in analysis-only lab
             }
 
-            # 4. Execution Logic (if not in analysis-only mode)
-            if not settings.ANALYSIS_ONLY and self.executor and risk_report.get("allowed"):
-                logger.info("Executing recommendation...")
-                success = self.executor.execute(recommendation)
-                if success:
-                    recommendation["broker_api_called"] = True
-                    if settings.LIVE_TRADING:
-                        recommendation["command"] = "order_sent"
-                    else:
-                        recommendation["command"] = "dry_run_simulated"
+            # 4. Execution Logic (only if NOT in analysis-only mode)
+            if not settings.ANALYSIS_ONLY:
+                if self.executor and risk_report.get("allowed"):
+                    logger.info("Executing recommendation...")
+                    success = self.executor.execute(recommendation)
+                    if success:
+                        recommendation["broker_api_called"] = True
+                        if settings.LIVE_TRADING:
+                            recommendation["live_execution_enabled"] = True
+                            recommendation["command"] = "order_sent"
+                        else:
+                            recommendation["command"] = "dry_run_simulated"
 
-                    if hasattr(self.risk_guard, 'update_daily_stats'):
-                        self.risk_guard.update_daily_stats(0.0)
+                        if hasattr(self.risk_guard, 'update_daily_stats'):
+                            self.risk_guard.update_daily_stats(0.0)
+            else:
+                logger.debug("Analysis-only mode: skipping execution.")
 
             # 5. Publish
             self.publisher.publish(recommendation)

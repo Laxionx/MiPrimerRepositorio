@@ -81,7 +81,7 @@ class LiquiditySweepDetector(SignalDetector):
                 "low_sweep": bool(current_bar['low'] < recent_low)
             },
             "vwap": {"value": market_context['vwap']},
-            "volume_profile": {"status": "not_available_in_simulated_ohlcv"},
-            "order_flow": {"status": "not_available_in_simulated_ohlcv"},
+            "volume_profile": {"value": None, "reason": "not_available_in_simulated_ohlcv"},
+            "order_flow": {"value": None, "reason": "not_available_in_simulated_ohlcv"},
             "setup": setup
         }

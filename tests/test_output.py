@@ -54,5 +54,5 @@ class TestOutputSafety(unittest.TestCase):
         for key in required_keys:
             self.assertIn(key, rec)
 
-        self.assertEqual(rec["volume_profile"]["status"], "not_available_in_simulated_ohlcv")
-        self.assertEqual(rec["order_flow"]["status"], "not_available_in_simulated_ohlcv")
+        self.assertEqual(rec["volume_profile"]["reason"], "not_available_in_simulated_ohlcv")
+        self.assertEqual(rec["order_flow"]["reason"], "not_available_in_simulated_ohlcv")
