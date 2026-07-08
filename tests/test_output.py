@@ -47,7 +47,11 @@ class TestOutputSafety(unittest.TestCase):
             "generated_at", "symbol", "timeframe", "market_context",
             "market_context_live", "liquidity", "vwap", "volume_profile",
             "order_flow", "setup", "risk", "command", "submit_allowed",
-            "broker_api_called", "live_execution_enabled"
+            "broker_api_called", "live_execution_enabled",
+            "market_regime", "context_bias", "context_score",
+            "context_reason", "entry_score", "entry_reason",
+            "blocked_by_context", "blocked_by_entry_score",
+            "no_chase_blocked", "no_chase_reason", "extension_atr",
         ]
 
         for key in required_keys:
@@ -56,3 +60,5 @@ class TestOutputSafety(unittest.TestCase):
         self.assertEqual(rec["schema_version"], "1.1.0")
         self.assertEqual(rec["mode"], "analysis_only")
         self.assertEqual(rec["data_provider"], "mock")
+        self.assertIsInstance(rec["context_score"], int)
+        self.assertIsInstance(rec["entry_score"], int)
