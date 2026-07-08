@@ -1,4 +1,3 @@
-import os
 from dotenv import load_dotenv
 from trading_bot.config.settings import settings
 from trading_bot.utils.logger import logger
@@ -7,6 +6,7 @@ from trading_bot.signals.liquidity_sweep import LiquiditySweepDetector
 from trading_bot.risk.risk_guard import SimpleRiskGuard
 from trading_bot.output.json_publisher import JSONRecommendationPublisher
 from trading_bot.core.engine import AnalysisEngine
+from trading_bot.journal.paper_forward import PaperForwardJournal
 
 def main():
     load_dotenv()
@@ -39,13 +39,15 @@ def main():
 
     # 4. Publisher
     publisher = JSONRecommendationPublisher()
+    journal = PaperForwardJournal("logs")
 
     # 5. Engine (Executor strictly removed)
     engine = AnalysisEngine(
         market_data=market_data,
         signal_detector=signal_detector,
         risk_guard=risk_guard,
-        publisher=publisher
+        publisher=publisher,
+        journal=journal,
     )
 
     try:

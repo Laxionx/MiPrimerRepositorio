@@ -13,6 +13,14 @@ class MockPublisher(RecommendationPublisher):
     def publish(self, recommendation):
         self.last_recommendation = recommendation
 
+
+class RecordingJournal:
+    def __init__(self):
+        self.recommendations = []
+
+    def record_setup(self, recommendation):
+        self.recommendations.append(recommendation)
+
 class TestOutputSafety(unittest.TestCase):
     def setUp(self):
         settings.DATA_PROVIDER = "mock"
@@ -64,3 +72,18 @@ class TestOutputSafety(unittest.TestCase):
         self.assertEqual(rec["data_provider"], "mock")
         self.assertIsInstance(rec["context_score"], int)
         self.assertIsInstance(rec["entry_score"], int)
+
+    def test_blocked_aqtf_setup_is_sent_to_configured_journal(self):
+        journal = RecordingJournal()
+        engine = AnalysisEngine(
+            market_data=MockDataProvider(scenario="low_sweep"),
+            signal_detector=LiquiditySweepDetector(),
+            risk_guard=SimpleRiskGuard(),
+            publisher=self.publisher,
+            journal=journal,
+        )
+
+        engine.run_once()
+
+        self.assertEqual(len(journal.recommendations), 1)
+        self.assertTrue(journal.recommendations[0]["blocked_by_context"])

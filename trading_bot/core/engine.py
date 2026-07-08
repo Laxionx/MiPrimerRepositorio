@@ -1,5 +1,6 @@
 import time
 from datetime import datetime
+from typing import Any
 from trading_bot.core.interfaces import MarketDataProvider, SignalDetector, RiskGuard, RecommendationPublisher
 from trading_bot.utils.logger import logger
 from trading_bot.config.settings import settings
@@ -12,7 +13,8 @@ class AnalysisEngine:
                  risk_guard: RiskGuard,
                  publisher: RecommendationPublisher,
                  context_engine: ContextEngine | None = None,
-                 entry_scorer: EntryScorer | None = None):
+                 entry_scorer: EntryScorer | None = None,
+                 journal: Any | None = None):
         self.market_data = market_data
         self.signal_detector = signal_detector
         self.risk_guard = risk_guard
@@ -25,6 +27,7 @@ class AnalysisEngine:
             spread_limit=settings.SPREAD_LIMIT,
             volatility_limit=settings.VOLATILITY_LIMIT,
         )
+        self.journal = journal
         self.running = False
 
     def run_once(self):
@@ -99,6 +102,8 @@ class AnalysisEngine:
 
             # 5. Publish
             self.publisher.publish(recommendation)
+            if self.journal is not None:
+                self.journal.record_setup(recommendation)
 
         except Exception as e:
             logger.error(f"Error in analysis engine loop: {e}", exc_info=True)
