@@ -52,6 +52,8 @@ class TestOutputSafety(unittest.TestCase):
             "context_reason", "entry_score", "entry_reason",
             "blocked_by_context", "blocked_by_entry_score",
             "no_chase_blocked", "no_chase_reason", "extension_atr",
+            "distance_to_h1_high", "distance_to_h1_low",
+            "distance_to_h1_mid",
         ]
 
         for key in required_keys:

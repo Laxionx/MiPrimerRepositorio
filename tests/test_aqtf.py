@@ -41,8 +41,9 @@ def test_rising_h1_context_supports_low_sweep_long():
         context,
         {"spread": 5, "volatility": 0.001},
     )
-    assert context["market_regime"] == "trend_up"
+    assert context["market_regime"] == "trend"
     assert context["context_bias"] == "long"
+    assert context["context_reason"] == "Trend continuation"
     assert score["blocked_by_context"] is False
     assert score["entry_score"] >= 65
 
@@ -55,10 +56,36 @@ def test_falling_h1_context_supports_high_sweep_short():
         context,
         {"spread": 5, "volatility": 0.001},
     )
-    assert context["market_regime"] == "trend_down"
+    assert context["market_regime"] == "trend"
     assert context["context_bias"] == "short"
     assert score["blocked_by_context"] is False
     assert score["entry_score"] >= 65
+
+
+def test_flat_overlapping_h1_context_is_range():
+    context = ContextEngine().evaluate(candles([100.0] * 20, ranges=[4.0] * 20))
+
+    assert context["market_regime"] == "range"
+    assert context["context_bias"] == "neutral"
+    assert context["context_reason"] == "Range center"
+
+
+def test_shrinking_h1_ranges_are_compression():
+    context = ContextEngine().evaluate(
+        candles([100.0] * 20, ranges=[2.0] * 17 + [0.5] * 3)
+    )
+
+    assert context["market_regime"] == "compression"
+    assert context["context_reason"].startswith("Compression")
+
+
+def test_context_always_includes_normalized_h1_distances():
+    context = ContextEngine().evaluate(candles([100 + i * 0.1 for i in range(20)]))
+
+    assert 0.0 <= context["distance_to_h1_high"] <= 1.0
+    assert 0.0 <= context["distance_to_h1_low"] <= 1.0
+    assert 0.0 <= context["distance_to_h1_mid"] <= 0.5
+    assert context["context_reason"]
 
 
 def test_setup_is_blocked_below_context_threshold():

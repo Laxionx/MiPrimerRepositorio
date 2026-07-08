@@ -1,6 +1,5 @@
 import time
 from datetime import datetime
-from typing import Dict, Any, Optional
 from trading_bot.core.interfaces import MarketDataProvider, SignalDetector, RiskGuard, RecommendationPublisher
 from trading_bot.utils.logger import logger
 from trading_bot.config.settings import settings
@@ -81,6 +80,9 @@ class AnalysisEngine:
                 "context_bias": signal_report["context_bias"],
                 "context_score": signal_report["context_score"],
                 "context_reason": signal_report["context_reason"],
+                "distance_to_h1_high": signal_report["distance_to_h1_high"],
+                "distance_to_h1_low": signal_report["distance_to_h1_low"],
+                "distance_to_h1_mid": signal_report["distance_to_h1_mid"],
                 "entry_score": signal_report["entry_score"],
                 "entry_reason": signal_report["entry_reason"],
                 "blocked_by_context": signal_report["blocked_by_context"],
