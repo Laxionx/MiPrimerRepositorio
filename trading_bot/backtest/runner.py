@@ -70,13 +70,20 @@ class BacktestRunner:
             bar = data.iloc[index]
 
             if pending is not None:
-                open_trade = self._open_trade(pending, bar)
+                open_trade = self._open_trade(pending, bar, index)
                 pending = None
 
             if open_trade is not None:
-                exit_price = self._exit_price(open_trade, bar)
-                if exit_price is not None:
-                    record = self._close_trade(open_trade, bar, exit_price)
+                exit_result = self._exit_price(open_trade, bar)
+                if exit_result is not None:
+                    exit_price, exit_reason = exit_result
+                    record = self._close_trade(
+                        open_trade,
+                        bar,
+                        exit_price,
+                        index,
+                        exit_reason,
+                    )
                     self.journal.record_completed_trade(record)
                     completed.append(record)
                     open_trade = None
@@ -97,6 +104,8 @@ class BacktestRunner:
                 "spread": self._spread(bar),
                 "volatility": self._volatility(history),
             }
+            atr = self._atr(history)
+            candle_range = float(bar["high"]) - float(bar["low"])
             entry_quality = self.entry_scorer.evaluate(
                 signal_report,
                 history,
@@ -109,6 +118,9 @@ class BacktestRunner:
                 "setup": signal_report["setup"],
                 **context,
                 **entry_quality,
+                **market_state,
+                "atr": atr,
+                "candle_range": candle_range,
             }
             self.journal.record_setup(recommendation)
             if self._is_blocked(entry_quality):
@@ -117,6 +129,10 @@ class BacktestRunner:
                 "setup": signal_report["setup"],
                 "context": context,
                 "entry_quality": entry_quality,
+                "market_state": market_state,
+                "atr": atr,
+                "candle_range": candle_range,
+                "sweep_level": self._sweep_level(signal_report),
             }
 
         if open_trade is not None:
@@ -125,6 +141,8 @@ class BacktestRunner:
                 open_trade,
                 final_bar,
                 float(final_bar["close"]),
+                len(data) - 1,
+                "end_of_data",
             )
             self.journal.record_completed_trade(record)
             completed.append(record)
@@ -137,6 +155,7 @@ class BacktestRunner:
         self,
         pending: dict[str, Any],
         bar: pd.Series,
+        bar_index: int,
     ) -> dict[str, Any]:
         setup = pending["setup"]
         direction = str(setup["type"])
@@ -149,23 +168,33 @@ class BacktestRunner:
             "direction": direction,
             "entry": entry,
             "timestamp_open": bar["time"].isoformat(),
+            "open_index": bar_index,
+            "spread": self._spread(bar),
+            "entry_distance_from_sweep": (
+                abs(entry - float(pending["sweep_level"]))
+                if pending["sweep_level"] is not None
+                else None
+            ),
         }
 
     @staticmethod
-    def _exit_price(trade: dict[str, Any], bar: pd.Series) -> float | None:
+    def _exit_price(
+        trade: dict[str, Any],
+        bar: pd.Series,
+    ) -> tuple[float, str] | None:
         setup = trade["setup"]
         stop = float(setup["stop_loss"])
         target = float(setup["take_profit"])
         if trade["direction"] == "LONG":
             if float(bar["low"]) <= stop:
-                return stop
+                return stop, "stop_loss"
             if float(bar["high"]) >= target:
-                return target
+                return target, "take_profit"
         else:
             if float(bar["high"]) >= stop:
-                return stop
+                return stop, "stop_loss"
             if float(bar["low"]) <= target:
-                return target
+                return target, "take_profit"
         return None
 
     def _close_trade(
@@ -173,11 +202,14 @@ class BacktestRunner:
         trade: dict[str, Any],
         bar: pd.Series,
         exit_price: float,
+        bar_index: int,
+        exit_reason: str,
     ) -> dict[str, Any]:
         setup = trade["setup"]
         multiplier = 1.0 if trade["direction"] == "LONG" else -1.0
         pnl = (exit_price - trade["entry"]) * multiplier
         risk = abs(trade["entry"] - float(setup["stop_loss"]))
+        reward = abs(float(setup["take_profit"]) - trade["entry"])
         outcome = "win" if pnl > 0 else "loss" if pnl < 0 else "breakeven"
         context = trade["context"]
         return {
@@ -202,6 +234,17 @@ class BacktestRunner:
             "distance_to_h1_high": context["distance_to_h1_high"],
             "distance_to_h1_low": context["distance_to_h1_low"],
             "distance_to_h1_mid": context["distance_to_h1_mid"],
+            "extension_atr": trade["entry_quality"].get("extension_atr"),
+            "spread": trade["spread"],
+            "volatility": trade["market_state"]["volatility"],
+            "atr": trade["atr"],
+            "candle_range": trade["candle_range"],
+            "risk_points": risk,
+            "reward_points": reward,
+            "planned_rr": reward / risk if risk else 0.0,
+            "entry_distance_from_sweep": trade["entry_distance_from_sweep"],
+            "bars_held": bar_index - trade["open_index"] + 1,
+            "exit_reason": exit_reason,
         }
 
     def _spread(self, bar: pd.Series) -> float:
@@ -215,6 +258,21 @@ class BacktestRunner:
             return 0.0
         value = returns.std(ddof=1)
         return 0.0 if pd.isna(value) else float(value)
+
+    @staticmethod
+    def _atr(history: pd.DataFrame, period: int = 14) -> float:
+        ranges = (
+            history["high"].astype(float) - history["low"].astype(float)
+        ).tail(period)
+        return float(ranges.mean()) if not ranges.empty else 0.0
+
+    @staticmethod
+    def _sweep_level(signal_report: dict[str, Any]) -> float | None:
+        liquidity = signal_report.get("liquidity") or {}
+        setup = signal_report.get("setup") or {}
+        key = "recent_low" if setup.get("type") == "LONG" else "recent_high"
+        value = liquidity.get(key)
+        return float(value) if value is not None else None
 
     @staticmethod
     def _completed_h1(history: pd.DataFrame, timestamp: Any) -> pd.DataFrame:

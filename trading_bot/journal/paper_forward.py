@@ -29,6 +29,26 @@ TRADE_FIELDS = (
     "distance_to_h1_low",
     "distance_to_h1_mid",
 )
+OPTIONAL_TRADE_FIELDS = (
+    "extension_atr",
+    "spread",
+    "volatility",
+    "atr",
+    "candle_range",
+    "risk_points",
+    "reward_points",
+    "planned_rr",
+    "entry_distance_from_sweep",
+    "bars_held",
+    "exit_reason",
+)
+OPTIONAL_BLOCKED_SETUP_FIELDS = (
+    "extension_atr",
+    "spread",
+    "volatility",
+    "atr",
+    "candle_range",
+)
 
 
 class PaperForwardJournal:
@@ -48,7 +68,15 @@ class PaperForwardJournal:
             raise ValueError(f"Missing completed trade fields: {', '.join(missing)}")
         if trade["outcome"] not in {"win", "loss", "breakeven"}:
             raise ValueError("outcome must be win, loss, or breakeven")
-        self._append(self.trades_path, {field: trade[field] for field in TRADE_FIELDS})
+        payload = {field: trade[field] for field in TRADE_FIELDS}
+        payload.update(
+            {
+                field: trade[field]
+                for field in OPTIONAL_TRADE_FIELDS
+                if field in trade
+            }
+        )
+        self._append(self.trades_path, payload)
 
     def record_setup(self, recommendation: dict[str, Any]) -> None:
         if not recommendation.get("setup"):
@@ -71,19 +99,27 @@ class PaperForwardJournal:
             },
         )
         if blocked:
+            payload = {
+                "timestamp": timestamp,
+                "symbol": recommendation["symbol"],
+                "market_regime": recommendation["market_regime"],
+                "context_score": recommendation["context_score"],
+                "entry_score": recommendation["entry_score"],
+                "block_reason": self._block_reason(recommendation),
+                "no_chase_blocked": bool(
+                    recommendation.get("no_chase_blocked")
+                ),
+            }
+            payload.update(
+                {
+                    field: recommendation[field]
+                    for field in OPTIONAL_BLOCKED_SETUP_FIELDS
+                    if field in recommendation
+                }
+            )
             self._append(
                 self.blocked_setups_path,
-                {
-                    "timestamp": timestamp,
-                    "symbol": recommendation["symbol"],
-                    "market_regime": recommendation["market_regime"],
-                    "context_score": recommendation["context_score"],
-                    "entry_score": recommendation["entry_score"],
-                    "block_reason": self._block_reason(recommendation),
-                    "no_chase_blocked": bool(
-                        recommendation.get("no_chase_blocked")
-                    ),
-                },
+                payload,
             )
 
     def write_daily_summary(self, trading_date: str | None = None) -> dict[str, Any]:

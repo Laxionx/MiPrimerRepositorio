@@ -50,14 +50,33 @@ def read_jsonl(path):
 
 def test_completed_trade_is_logged_with_required_context(tmp_path):
     journal = PaperForwardJournal(tmp_path)
+    record = trade_record("trade-1", 100.0, 2.0)
+    record.update(
+        {
+            "extension_atr": 0.25,
+            "spread": 18.0,
+            "volatility": 0.001,
+            "atr": 4.0,
+            "candle_range": 5.0,
+            "risk_points": 5.0,
+            "reward_points": 10.0,
+            "planned_rr": 2.0,
+            "entry_distance_from_sweep": 1.0,
+            "bars_held": 3,
+            "exit_reason": "take_profit",
+        }
+    )
 
-    journal.record_completed_trade(trade_record("trade-1", 100.0, 2.0))
+    journal.record_completed_trade(record)
 
     records = read_jsonl(tmp_path / "trades.jsonl")
     assert len(records) == 1
     assert records[0]["trade_id"] == "trade-1"
     assert records[0]["market_regime"] == "trend"
     assert records[0]["r_multiple"] == 2.0
+    assert records[0]["extension_atr"] == 0.25
+    assert records[0]["bars_held"] == 3
+    assert records[0]["exit_reason"] == "take_profit"
 
 
 def test_blocked_aqtf_setup_is_logged(tmp_path):

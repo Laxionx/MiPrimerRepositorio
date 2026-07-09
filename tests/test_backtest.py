@@ -138,6 +138,17 @@ def test_same_candle_stop_and_target_uses_stop_first(tmp_path):
     trade = read_jsonl(tmp_path / "trades.jsonl")[0]
     assert trade["exit_price"] == 9.0
     assert trade["outcome"] == "loss"
+    assert trade["extension_atr"] == 0.1
+    assert trade["spread"] == 0.0
+    assert trade["volatility"] == 0.0
+    assert trade["atr"] == 1.0
+    assert trade["candle_range"] == 1.0
+    assert trade["risk_points"] == 1.0
+    assert trade["reward_points"] == 1.0
+    assert trade["planned_rr"] == 1.0
+    assert trade["entry_distance_from_sweep"] == 0.5
+    assert trade["bars_held"] == 1
+    assert trade["exit_reason"] == "stop_loss"
 
 
 def test_missing_spread_uses_configured_default(tmp_path):
@@ -152,6 +163,12 @@ def test_blocked_setup_is_written_without_trade(tmp_path):
 
     assert metrics["total_trades"] == 0
     assert (tmp_path / "blocked_setups.jsonl").exists()
+    blocked = read_jsonl(tmp_path / "blocked_setups.jsonl")[0]
+    assert blocked["extension_atr"] == 0.1
+    assert blocked["spread"] == 0.0
+    assert blocked["volatility"] == 0.0
+    assert blocked["atr"] == 1.0
+    assert blocked["candle_range"] == 1.0
 
 
 def test_backtest_module_has_no_order_send_path():
