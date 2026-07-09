@@ -52,3 +52,11 @@ Run the suite with:
 export PYTHONPATH=$PYTHONPATH:.
 python -m pytest tests -q
 ```
+
+## Edge V2 feature separation
+
+Generate a diagnostic-only JSON comparison of winners and losers from an
+existing journal or CSV export:
+```bash
+python -m trading_bot.research.edge_v2_feature_separation --journal logs/xauusd_m5/trades.jsonl --out reports/edge_v2_feature_separation.json
+```
