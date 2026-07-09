@@ -4,6 +4,7 @@ from typing import Any
 import pandas as pd
 
 from trading_bot.journal.paper_forward import PaperForwardJournal
+from trading_bot.analysis.edge_v2 import EdgeV2Diagnostics
 from trading_bot.metrics.performance import calculate_performance_metrics
 from trading_bot.signals.aqtf import ContextEngine, EntryScorer
 from trading_bot.signals.liquidity_sweep import LiquiditySweepDetector
@@ -41,6 +42,7 @@ class BacktestRunner:
         signal_detector: Any | None = None,
         context_engine: Any | None = None,
         entry_scorer: Any | None = None,
+        edge_v2_diagnostics: Any | None = None,
         default_spread: float = 0.0,
         slippage_points: float = 0.0,
         warmup_bars: int = 21,
@@ -53,6 +55,7 @@ class BacktestRunner:
         self.signal_detector = signal_detector or LiquiditySweepDetector()
         self.context_engine = context_engine or ContextEngine()
         self.entry_scorer = entry_scorer or EntryScorer()
+        self.edge_v2_diagnostics = edge_v2_diagnostics or EdgeV2Diagnostics()
         self.default_spread = default_spread
         self.slippage_points = slippage_points
         self.warmup_bars = warmup_bars
@@ -112,6 +115,7 @@ class BacktestRunner:
                 context,
                 market_state,
             )
+            edge_v2 = self.edge_v2_diagnostics.evaluate(history)
             recommendation = {
                 "generated_at": bar["time"].isoformat(),
                 "symbol": self.symbol,
@@ -121,6 +125,7 @@ class BacktestRunner:
                 **market_state,
                 "atr": atr,
                 "candle_range": candle_range,
+                **edge_v2,
             }
             self.journal.record_setup(recommendation)
             if self._is_blocked(entry_quality):
@@ -129,6 +134,7 @@ class BacktestRunner:
                 "setup": signal_report["setup"],
                 "context": context,
                 "entry_quality": entry_quality,
+                "edge_v2": edge_v2,
                 "market_state": market_state,
                 "atr": atr,
                 "candle_range": candle_range,
@@ -245,6 +251,7 @@ class BacktestRunner:
             "entry_distance_from_sweep": trade["entry_distance_from_sweep"],
             "bars_held": bar_index - trade["open_index"] + 1,
             "exit_reason": exit_reason,
+            **trade["edge_v2"],
         }
 
     def _spread(self, bar: pd.Series) -> float:

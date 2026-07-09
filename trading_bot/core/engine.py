@@ -5,6 +5,7 @@ from trading_bot.core.interfaces import MarketDataProvider, SignalDetector, Risk
 from trading_bot.utils.logger import logger
 from trading_bot.config.settings import settings
 from trading_bot.signals.aqtf import ContextEngine, EntryScorer
+from trading_bot.analysis.edge_v2 import EdgeV2Diagnostics
 
 class AnalysisEngine:
     def __init__(self,
@@ -14,6 +15,7 @@ class AnalysisEngine:
                  publisher: RecommendationPublisher,
                  context_engine: ContextEngine | None = None,
                  entry_scorer: EntryScorer | None = None,
+                 edge_v2_diagnostics: EdgeV2Diagnostics | None = None,
                  journal: Any | None = None):
         self.market_data = market_data
         self.signal_detector = signal_detector
@@ -32,6 +34,7 @@ class AnalysisEngine:
             ),
             min_planned_rr=settings.MIN_PLANNED_RR,
         )
+        self.edge_v2_diagnostics = edge_v2_diagnostics or EdgeV2Diagnostics()
         self.journal = journal
         self.running = False
 
@@ -61,8 +64,10 @@ class AnalysisEngine:
                 aqtf_context,
                 market_context,
             )
+            edge_v2 = self.edge_v2_diagnostics.evaluate(data)
             signal_report.update(aqtf_context)
             signal_report.update(entry_quality)
+            signal_report.update(edge_v2)
 
             # 3. Risk Guarding (Using dynamic market context)
             risk_report = self.risk_guard.validate_setup(signal_report, market_context)
@@ -107,6 +112,7 @@ class AnalysisEngine:
                 "no_chase_blocked": signal_report["no_chase_blocked"],
                 "no_chase_reason": signal_report["no_chase_reason"],
                 "extension_atr": signal_report["extension_atr"],
+                **edge_v2,
                 "risk": risk_report,
                 "command": None,
                 "submit_allowed": False,

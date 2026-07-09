@@ -23,6 +23,16 @@ AVERAGE_FIELDS = (
     "distance_to_h1_high",
     "distance_to_h1_low",
     "distance_to_h1_mid",
+    "compression_score",
+    "range_duration_bars",
+    "atr_contraction_pct",
+    "recent_range_points",
+    "prior_range_points",
+    "pressure_score",
+    "price_position_in_range",
+    "upper_quartile_closes",
+    "lower_quartile_closes",
+    "average_pullback_depth",
 )
 CATEGORY_FIELDS = (
     "market_regime",
@@ -30,6 +40,8 @@ CATEGORY_FIELDS = (
     "direction",
     "sweep_type",
     "exit_reason",
+    "is_compressing",
+    "pressure_direction",
 )
 EXPORT_FIELDS = (
     "trade_id",
@@ -64,6 +76,18 @@ EXPORT_FIELDS = (
     "distance_to_h1_high",
     "distance_to_h1_low",
     "distance_to_h1_mid",
+    "compression_score",
+    "is_compressing",
+    "range_duration_bars",
+    "atr_contraction_pct",
+    "recent_range_points",
+    "prior_range_points",
+    "pressure_score",
+    "pressure_direction",
+    "price_position_in_range",
+    "upper_quartile_closes",
+    "lower_quartile_closes",
+    "average_pullback_depth",
 )
 
 
