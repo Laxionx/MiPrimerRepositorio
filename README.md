@@ -60,3 +60,13 @@ existing journal or CSV export:
 ```bash
 python -m trading_bot.research.edge_v2_feature_separation --journal logs/xauusd_m5/trades.jsonl --out reports/edge_v2_feature_separation.json
 ```
+
+## Edge V2 MT5 research pipeline
+
+Export local MT5 history, backtest it, and generate a diagnostic-only report:
+```bash
+python -m trading_bot.research.edge_v2_mt5_pipeline --symbol XAUUSD --timeframe M5 --start 2026-05-18T19:10:00+00:00 --end 2026-07-10T01:40:00+00:00 --out-dir reports/edge_v2_mt5_xauusd_m5
+```
+It writes local candles, journal, and JSON report artifacts. `environment_blocked`
+means the local terminal cannot provide the requested history; no fallback data or
+diagnostic claim is produced.
