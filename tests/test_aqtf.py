@@ -79,6 +79,29 @@ def test_shrinking_h1_ranges_are_compression():
     assert context["context_reason"].startswith("Compression")
 
 
+def test_context_score_varies_across_regimes_and_trend_locations():
+    continuation = ContextEngine().evaluate(candles([100 + i for i in range(20)]))
+    pullback = ContextEngine().evaluate(
+        candles([100 + i for i in range(19)] + [116.0])
+    )
+    ranging = ContextEngine().evaluate(candles([100.0] * 20, ranges=[4.0] * 20))
+    compression = ContextEngine().evaluate(
+        candles([100.0] * 20, ranges=[2.0] * 17 + [0.5] * 3)
+    )
+
+    assert continuation["context_score"] != pullback["context_score"]
+    assert len(
+        {
+            continuation["context_score"],
+            ranging["context_score"],
+            compression["context_score"],
+        }
+    ) == 3
+    assert continuation["context_score"] >= 60
+    assert ranging["context_score"] < 60
+    assert compression["context_score"] < 60
+
+
 def test_context_always_includes_normalized_h1_distances():
     context = ContextEngine().evaluate(candles([100 + i * 0.1 for i in range(20)]))
 
@@ -132,6 +155,30 @@ def test_no_chase_blocks_extended_entry():
     )
     assert result["extension_atr"] > 0.6
     assert result["no_chase_blocked"] is True
+
+
+def test_entry_score_varies_for_weak_and_strong_accepted_sweeps():
+    context = ContextEngine().evaluate(candles([100 + i for i in range(20)]))
+    report = sweep_report("LONG", level=118.5, price=119.0)
+    data = candles([118.0] * 19 + [119.0], ranges=[2.0] * 20)
+    scorer = EntryScorer()
+
+    weak = scorer.evaluate(
+        report,
+        data,
+        context,
+        {"spread": 19, "volatility": 0.0045},
+    )
+    strong = scorer.evaluate(
+        report,
+        data,
+        context,
+        {"spread": 1, "volatility": 0.0001},
+    )
+
+    assert weak["entry_score"] != strong["entry_score"]
+    assert weak["blocked_by_entry_score"] is False
+    assert strong["blocked_by_entry_score"] is False
 
 
 def test_risk_guard_blocks_aqtf_rejection():
