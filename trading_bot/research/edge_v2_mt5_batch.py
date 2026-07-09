@@ -152,7 +152,11 @@ def main() -> None:
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--strict", action="store_true")
     args = parser.parse_args()
-    summary = run_edge_v2_mt5_batch(load_batch_plan(args.plan), out_dir=args.out_dir, strict=args.strict)
+    run_edge_v2_mt5_batch(
+        load_batch_plan(args.plan),
+        out_dir=args.out_dir,
+        strict=args.strict,
+    )
     print(args.out_dir / "edge_v2_batch_summary.json")
 
 
