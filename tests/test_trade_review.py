@@ -81,3 +81,6 @@ def test_report_and_csv_exports_match_selected_group_totals(tmp_path):
     assert "## Worst Losers Summary" in contents
     assert "## Key Differences" in contents
     assert "## Possible Edge V2 Clues" in contents
+    assert "average atr" in contents
+    assert "average bars_held" in contents
+    assert "most common exit_reason" in contents
