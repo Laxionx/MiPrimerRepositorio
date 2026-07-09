@@ -43,8 +43,12 @@ OPTIONAL_TRADE_FIELDS = (
     "exit_reason",
 )
 OPTIONAL_BLOCKED_SETUP_FIELDS = (
+    "blocked_by_quality_guard",
+    "quality_block_reason",
     "extension_atr",
     "spread",
+    "entry_distance_from_sweep",
+    "planned_rr",
     "volatility",
     "atr",
     "candle_range",
@@ -85,6 +89,7 @@ class PaperForwardJournal:
             recommendation.get("blocked_by_context")
             or recommendation.get("blocked_by_entry_score")
             or recommendation.get("no_chase_blocked")
+            or recommendation.get("blocked_by_quality_guard")
         )
         timestamp = str(
             recommendation.get("generated_at")
@@ -156,6 +161,8 @@ class PaperForwardJournal:
 
     @staticmethod
     def _block_reason(recommendation: dict[str, Any]) -> str:
+        if recommendation.get("blocked_by_quality_guard"):
+            return str(recommendation.get("quality_block_reason"))
         if recommendation.get("no_chase_blocked"):
             return "no_chase"
         if recommendation.get("blocked_by_context"):

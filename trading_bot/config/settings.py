@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     CONTEXT_SCORE_MIN: int = 60
     ENTRY_SCORE_MIN: int = 65
     NO_CHASE_MAX_ATR: float = 0.6
+    MAX_SPREAD_POINTS: float = 6.0
+    MAX_ENTRY_DISTANCE_FROM_SWEEP: float = 10.0
+    MIN_PLANNED_RR: float = 1.0
     CONTEXT_LOOKBACK: int = 20
 
     REWARD_RISK_RATIO: float = 2.0

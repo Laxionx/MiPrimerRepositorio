@@ -179,12 +179,18 @@ class EntryScorer:
         no_chase_max_atr: float = 0.6,
         spread_limit: float = 20,
         volatility_limit: float = 0.005,
+        max_spread_points: float = 6,
+        max_entry_distance_from_sweep: float = 10,
+        min_planned_rr: float = 1.0,
     ):
         self.context_score_min = context_score_min
         self.entry_score_min = entry_score_min
         self.no_chase_max_atr = no_chase_max_atr
         self.spread_limit = spread_limit
         self.volatility_limit = volatility_limit
+        self.max_spread_points = max_spread_points
+        self.max_entry_distance_from_sweep = max_entry_distance_from_sweep
+        self.min_planned_rr = min_planned_rr
 
     def evaluate(
         self,
@@ -204,6 +210,11 @@ class EntryScorer:
                 "no_chase_blocked": False,
                 "no_chase_reason": "no setup to evaluate",
                 "extension_atr": None,
+                "blocked_by_quality_guard": False,
+                "quality_block_reason": None,
+                "spread": market_state.get("spread"),
+                "entry_distance_from_sweep": None,
+                "planned_rr": None,
             }
 
         direction = str(setup["type"])
@@ -225,6 +236,17 @@ class EntryScorer:
             else liquidity.get("recent_high")
         )
         entry_price = float(setup["entry_price"])
+        spread = self._optional_float(market_state.get("spread"))
+        entry_distance = (
+            abs(entry_price - float(level)) if level is not None else None
+        )
+        planned_rr = self._planned_rr(setup, entry_price)
+        quality_block_reason = self._quality_block_reason(
+            spread=spread,
+            entry_distance=entry_distance,
+            planned_rr=planned_rr,
+        )
+        blocked_by_quality_guard = quality_block_reason is not None
         reclaimed = level is not None and (
             (direction == "LONG" and entry_price > float(level))
             or (direction == "SHORT" and entry_price < float(level))
@@ -277,7 +299,45 @@ class EntryScorer:
                 else "entry remains within no-chase limit"
             ),
             "extension_atr": extension_atr,
+            "blocked_by_quality_guard": blocked_by_quality_guard,
+            "quality_block_reason": quality_block_reason,
+            "spread": spread,
+            "entry_distance_from_sweep": entry_distance,
+            "planned_rr": planned_rr,
         }
+
+    def _quality_block_reason(
+        self,
+        *,
+        spread: float | None,
+        entry_distance: float | None,
+        planned_rr: float | None,
+    ) -> str | None:
+        if spread is not None and spread > self.max_spread_points:
+            return "spread_exceeds_maximum"
+        if (
+            entry_distance is not None
+            and entry_distance > self.max_entry_distance_from_sweep
+        ):
+            return "entry_distance_exceeds_maximum"
+        if planned_rr is not None and planned_rr < self.min_planned_rr:
+            return "planned_rr_below_minimum"
+        return None
+
+    @staticmethod
+    def _planned_rr(setup: dict[str, Any], entry_price: float) -> float | None:
+        stop = setup.get("stop_loss")
+        target = setup.get("take_profit")
+        if stop is None or target is None:
+            return None
+        risk = abs(entry_price - float(stop))
+        if risk <= 0:
+            return None
+        return abs(float(target) - entry_price) / risk
+
+    @staticmethod
+    def _optional_float(value: Any) -> float | None:
+        return float(value) if value is not None else None
 
     def _extension_atr(
         self,
