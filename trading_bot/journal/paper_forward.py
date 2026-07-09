@@ -41,6 +41,18 @@ OPTIONAL_TRADE_FIELDS = (
     "entry_distance_from_sweep",
     "bars_held",
     "exit_reason",
+    "compression_score",
+    "is_compressing",
+    "range_duration_bars",
+    "atr_contraction_pct",
+    "recent_range_points",
+    "prior_range_points",
+    "pressure_score",
+    "pressure_direction",
+    "price_position_in_range",
+    "upper_quartile_closes",
+    "lower_quartile_closes",
+    "average_pullback_depth",
 )
 OPTIONAL_BLOCKED_SETUP_FIELDS = (
     "blocked_by_quality_guard",
@@ -52,6 +64,18 @@ OPTIONAL_BLOCKED_SETUP_FIELDS = (
     "volatility",
     "atr",
     "candle_range",
+    "compression_score",
+    "is_compressing",
+    "range_duration_bars",
+    "atr_contraction_pct",
+    "recent_range_points",
+    "prior_range_points",
+    "pressure_score",
+    "pressure_direction",
+    "price_position_in_range",
+    "upper_quartile_closes",
+    "lower_quartile_closes",
+    "average_pullback_depth",
 )
 
 

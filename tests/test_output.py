@@ -64,6 +64,11 @@ class TestOutputSafety(unittest.TestCase):
             "no_chase_blocked", "no_chase_reason", "extension_atr",
             "distance_to_h1_high", "distance_to_h1_low",
             "distance_to_h1_mid",
+            "compression_score", "is_compressing", "range_duration_bars",
+            "atr_contraction_pct", "recent_range_points", "prior_range_points",
+            "pressure_score", "pressure_direction", "price_position_in_range",
+            "upper_quartile_closes", "lower_quartile_closes",
+            "average_pullback_depth",
         ]
 
         for key in required_keys:

@@ -21,6 +21,18 @@ def trade(trade_id: str, pnl: float, r_multiple: float) -> dict:
         "distance_to_h1_high": 0.2,
         "distance_to_h1_low": 0.8,
         "distance_to_h1_mid": 0.3,
+        "compression_score": 80,
+        "is_compressing": True,
+        "range_duration_bars": 5,
+        "atr_contraction_pct": 75.0,
+        "recent_range_points": 2.0,
+        "prior_range_points": 8.0,
+        "pressure_score": 88,
+        "pressure_direction": "long",
+        "price_position_in_range": 0.9,
+        "upper_quartile_closes": 4,
+        "lower_quartile_closes": 0,
+        "average_pullback_depth": 0.1,
     }
 
 
@@ -84,3 +96,5 @@ def test_report_and_csv_exports_match_selected_group_totals(tmp_path):
     assert "average atr" in contents
     assert "average bars_held" in contents
     assert "most common exit_reason" in contents
+    assert "average compression_score" in contents
+    assert "most common pressure_direction" in contents
