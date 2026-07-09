@@ -3,6 +3,7 @@ import json
 from trading_bot.research.edge_v2_feature_separation import (
     analyze_feature_separation,
     calculate_effect_size,
+    load_journal_records,
     write_feature_separation_report,
 )
 
@@ -66,6 +67,31 @@ def test_one_sided_outcomes_are_insufficient_data():
     assert result["loser_count"] == 0
     assert result["separation"] == "insufficient_data"
     assert result["simple_effect_size"] is None
+
+
+def test_breakeven_records_are_not_counted_as_losers():
+    report = analyze_feature_separation(
+        [
+            trade("w1", 1, compression_score=80),
+            trade("b1", 0, compression_score=60),
+            trade("l1", -1, compression_score=40),
+        ]
+    )
+
+    result = report["features"]["compression_score"]
+    assert result["sample_count"] == 3
+    assert result["winner_count"] == 1
+    assert result["loser_count"] == 1
+
+
+def test_jsonl_and_csv_journals_are_loaded(tmp_path):
+    jsonl = tmp_path / "trades.jsonl"
+    csv_path = tmp_path / "trades.csv"
+    jsonl.write_text(json.dumps(trade("w1", 1, compression_score=80)) + "\n")
+    csv_path.write_text("trade_id,pnl,compression_score\nl1,-1,20\n")
+
+    assert load_journal_records(jsonl)[0]["compression_score"] == 80
+    assert load_journal_records(csv_path)[0]["compression_score"] == "20"
 
 
 def test_effect_size_uses_pooled_standard_deviation():
