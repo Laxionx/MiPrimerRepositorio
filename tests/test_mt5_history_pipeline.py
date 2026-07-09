@@ -8,6 +8,7 @@ from trading_bot.data.mt5_history import (
     MT5HistoryError,
     export_from_local_terminal,
     export_mt5_history,
+    export_mt5_history_range,
     resolve_timeframe,
 )
 from trading_bot.backtest import mt5_pipeline
@@ -50,6 +51,9 @@ class FakeMT5:
             }
         ]
 
+    def copy_rates_range(self, symbol, timeframe, start, end):
+        return self.copy_rates_from_pos(symbol, timeframe, 0, 1)
+
 
 @pytest.mark.parametrize(
     ("label", "expected"),
@@ -82,6 +86,21 @@ def test_exported_csv_has_backtest_columns(tmp_path):
     ]
     assert exported.iloc[0]["volume"] == 120
     assert exported.iloc[0]["spread"] == 18
+
+
+def test_range_exported_csv_has_backtest_columns(tmp_path):
+    output = tmp_path / "xauusd_m5_range.csv"
+
+    export_mt5_history_range(
+        FakeMT5(),
+        symbol="XAUUSD",
+        timeframe="M5",
+        start="2025-01-01",
+        end="2025-01-02",
+        output=output,
+    )
+
+    assert pd.read_csv(output).iloc[0]["close"] == 2000.5
 
 
 def test_local_export_fails_cleanly_when_mt5_is_unavailable(tmp_path):

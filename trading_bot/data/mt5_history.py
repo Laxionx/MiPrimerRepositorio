@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +46,38 @@ def export_mt5_history(
             f"No MT5 history returned for {symbol} {timeframe}"
         )
 
+    return _write_export(rates, output)
+
+
+def export_mt5_history_range(
+    gateway: Any,
+    *,
+    symbol: str,
+    timeframe: str,
+    start: str | datetime,
+    end: str | datetime,
+    output: str | Path,
+) -> Path:
+    if gateway.symbol_info(symbol) is None:
+        raise MT5HistoryError(f"MT5 symbol is unavailable: {symbol}")
+    start_time = _parse_utc(start)
+    end_time = _parse_utc(end)
+    if end_time <= start_time:
+        raise MT5HistoryError("MT5 history end must be after start")
+    rates = gateway.copy_rates_range(
+        symbol,
+        resolve_timeframe(gateway, timeframe),
+        start_time,
+        end_time,
+    )
+    if rates is None or len(rates) == 0:
+        raise MT5HistoryError(
+            f"No MT5 history returned for {symbol} {timeframe} in requested range"
+        )
+    return _write_export(rates, output)
+
+
+def _write_export(rates: Any, output: str | Path) -> Path:
     source = pd.DataFrame(rates)
     required = {"time", "open", "high", "low", "close", "tick_volume"}
     missing = required.difference(source.columns)
@@ -78,6 +111,13 @@ def export_mt5_history(
     return output_path
 
 
+def _parse_utc(value: str | datetime) -> datetime:
+    parsed = value if isinstance(value, datetime) else datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def export_from_local_terminal(
     *,
     symbol: str,
@@ -102,6 +142,38 @@ def export_from_local_terminal(
             symbol=symbol,
             timeframe=timeframe,
             bars=bars,
+            output=output,
+        )
+    finally:
+        gateway.shutdown()
+
+
+def export_range_from_local_terminal(
+    *,
+    symbol: str,
+    timeframe: str,
+    start: str | datetime,
+    end: str | datetime,
+    output: str | Path,
+    gateway: Any | None = None,
+) -> Path:
+    if gateway is None:
+        try:
+            import MetaTrader5 as gateway
+        except ImportError as exc:
+            raise MT5HistoryError("MetaTrader5 package is unavailable") from exc
+
+    if not gateway.initialize():
+        raise MT5HistoryError(
+            f"MT5 terminal is unavailable: {gateway.last_error()}"
+        )
+    try:
+        return export_mt5_history_range(
+            gateway,
+            symbol=symbol,
+            timeframe=timeframe,
+            start=start,
+            end=end,
             output=output,
         )
     finally:
