@@ -43,6 +43,24 @@ def test_empty_journal_is_handled_and_report_is_generated(tmp_path):
     assert "No completed trades available." in output.read_text()
 
 
+def test_old_journal_without_edge_v2_fields_still_loads(tmp_path):
+    path = tmp_path / "trades.jsonl"
+    old_record = trade(
+        "legacy-1",
+        regime="trend",
+        direction="LONG",
+        context_score=75,
+        entry_score=82,
+        pnl=10,
+        r_multiple=1,
+    )
+    write_jsonl(path, [old_record])
+
+    loaded = load_trade_journal(path)
+
+    assert loaded == [old_record]
+
+
 def test_report_is_generated_with_rankings_and_conclusions(tmp_path):
     records = [
         trade(

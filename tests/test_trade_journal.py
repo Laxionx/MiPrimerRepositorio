@@ -3,6 +3,23 @@ import json
 from trading_bot.journal.paper_forward import PaperForwardJournal
 
 
+def edge_v2_fields() -> dict:
+    return {
+        "compression_score": 80,
+        "is_compressing": True,
+        "range_duration_bars": 5,
+        "atr_contraction_pct": 75.0,
+        "recent_range_points": 2.0,
+        "prior_range_points": 8.0,
+        "pressure_score": 88,
+        "pressure_direction": "long",
+        "price_position_in_range": 0.9,
+        "upper_quartile_closes": 4,
+        "lower_quartile_closes": 0,
+        "average_pullback_depth": 0.1,
+    }
+
+
 def trade_record(trade_id: str, pnl: float, r_multiple: float) -> dict:
     return {
         "trade_id": trade_id,
@@ -64,6 +81,7 @@ def test_completed_trade_is_logged_with_required_context(tmp_path):
             "entry_distance_from_sweep": 1.0,
             "bars_held": 3,
             "exit_reason": "take_profit",
+            **edge_v2_fields(),
         }
     )
 
@@ -77,6 +95,8 @@ def test_completed_trade_is_logged_with_required_context(tmp_path):
     assert records[0]["extension_atr"] == 0.25
     assert records[0]["bars_held"] == 3
     assert records[0]["exit_reason"] == "take_profit"
+    assert records[0]["compression_score"] == 80
+    assert records[0]["pressure_direction"] == "long"
 
 
 def test_blocked_aqtf_setup_is_logged(tmp_path):
@@ -108,6 +128,7 @@ def test_quality_guard_block_is_logged(tmp_path):
             "spread": 7.0,
             "entry_distance_from_sweep": 2.0,
             "planned_rr": 1.5,
+            **edge_v2_fields(),
         }
     )
 
@@ -119,6 +140,8 @@ def test_quality_guard_block_is_logged(tmp_path):
     assert record["spread"] == 7.0
     assert record["entry_distance_from_sweep"] == 2.0
     assert record["planned_rr"] == 1.5
+    assert record["compression_score"] == 80
+    assert record["pressure_direction"] == "long"
 
 
 def test_daily_summary_combines_setups_and_completed_trades(tmp_path):
