@@ -46,7 +46,7 @@ class ContextEngine:
                 return self._result(
                     "compression",
                     "neutral",
-                    50,
+                    self._context_score("compression", "neutral", distances),
                     self._location_reason("Compression", distances),
                     distances,
                 )
@@ -55,7 +55,7 @@ class ContextEngine:
             return self._result(
                 "trend",
                 "long",
-                75,
+                self._context_score("trend", "long", distances),
                 self._trend_reason("long", distances),
                 distances,
             )
@@ -63,7 +63,7 @@ class ContextEngine:
             return self._result(
                 "trend",
                 "short",
-                75,
+                self._context_score("trend", "short", distances),
                 self._trend_reason("short", distances),
                 distances,
             )
@@ -71,7 +71,7 @@ class ContextEngine:
         return self._result(
             "range",
             "neutral",
-            55,
+            self._context_score("range", "neutral", distances),
             self._location_reason("Range", distances),
             distances,
         )
@@ -141,6 +141,32 @@ class ContextEngine:
         ) or (bias == "short" and distances["distance_to_h1_low"] <= 0.25)
         return "Trend continuation" if continuation else "Trend pullback"
 
+    @staticmethod
+    def _context_score(
+        regime: str,
+        bias: str,
+        distances: dict[str, float | None],
+    ) -> int:
+        if regime == "trend":
+            directional_distance = (
+                distances["distance_to_h1_high"]
+                if bias == "long"
+                else distances["distance_to_h1_low"]
+            )
+            location_quality = 1.0 - min(max(float(directional_distance), 0.0), 1.0)
+            return 65 + round(location_quality * 15)
+        if regime == "range":
+            edge_distance = min(
+                float(distances["distance_to_h1_high"]),
+                float(distances["distance_to_h1_low"]),
+            )
+            return 45 + round((1.0 - min(edge_distance * 2, 1.0)) * 10)
+        distance_from_mid = min(
+            float(distances["distance_to_h1_mid"]) * 2,
+            1.0,
+        )
+        return 40 + round(distance_from_mid * 15)
+
 
 class EntryScorer:
     """Score an existing liquidity sweep without creating new signals."""
@@ -182,14 +208,14 @@ class EntryScorer:
 
         direction = str(setup["type"])
         expected_bias = "long" if direction == "LONG" else "short"
-        score = 55
+        score = 40
         reasons = ["liquidity sweep confirmed"]
 
         if context["context_bias"] == expected_bias:
-            score += 20
+            score += 15
             reasons.append("aligned with H1 context")
         elif context["context_bias"] not in {"neutral", expected_bias}:
-            score -= 20
+            score -= 15
             reasons.append("opposes H1 context")
 
         liquidity = signal_report.get("liquidity", {})
@@ -204,7 +230,7 @@ class EntryScorer:
             or (direction == "SHORT" and entry_price < float(level))
         )
         if reclaimed:
-            score += 10
+            score += 8
             reasons.append("prior range reclaimed")
 
         extension_atr = self._extension_atr(
@@ -219,12 +245,23 @@ class EntryScorer:
         if no_chase_blocked:
             score -= 25
             reasons.append("entry exceeds no-chase limit")
+        elif extension_atr is not None:
+            score += self._extension_quality(extension_atr)
+            reasons.append("extension quality measured")
 
-        if self._is_degraded(market_state):
-            score -= 15
-            reasons.append("spread or volatility degraded")
+        score += self._sweep_quality(direction, level, m5_data)
+        spread_points = self._quality_points(
+            market_state.get("spread"),
+            self.spread_limit,
+        )
+        volatility_points = self._quality_points(
+            market_state.get("volatility"),
+            self.volatility_limit,
+        )
+        score += spread_points + volatility_points
+        reasons.append("spread and volatility quality measured")
 
-        score = max(0, min(100, score))
+        score = max(0, min(89, score))
         blocked_by_context = context["context_score"] < self.context_score_min
         blocked_by_entry_score = score < self.entry_score_min or no_chase_blocked
         return {
@@ -263,12 +300,35 @@ class EntryScorer:
         )
         return max(0.0, extension / atr)
 
-    def _is_degraded(self, market_state: dict[str, Any]) -> bool:
-        spread = market_state.get("spread")
-        volatility = market_state.get("volatility")
-        return (
-            spread is None
-            or volatility is None
-            or float(spread) > self.spread_limit
-            or float(volatility) > self.volatility_limit
+    @staticmethod
+    def _extension_quality(extension_atr: float) -> int:
+        distance_from_balanced_reclaim = abs(extension_atr - 0.25)
+        return max(0, 10 - round(distance_from_balanced_reclaim * 20))
+
+    @staticmethod
+    def _quality_points(value: Any, limit: float) -> int:
+        if value is None or limit <= 0:
+            return 0
+        ratio = min(max(float(value) / limit, 0.0), 1.0)
+        return round((1.0 - ratio) * 10)
+
+    @staticmethod
+    def _sweep_quality(
+        direction: str,
+        level: Any,
+        data: pd.DataFrame,
+    ) -> int:
+        if level is None or data.empty or not {"high", "low"}.issubset(data.columns):
+            return 0
+        ranges = data["high"].astype(float) - data["low"].astype(float)
+        atr = float(ranges.tail(14).mean())
+        if atr <= 0:
+            return 0
+        current = data.iloc[-1]
+        penetration = (
+            float(level) - float(current["low"])
+            if direction == "LONG"
+            else float(current["high"]) - float(level)
         )
+        normalized = min(max(penetration / atr, 0.0), 1.0)
+        return round(normalized * 8)
