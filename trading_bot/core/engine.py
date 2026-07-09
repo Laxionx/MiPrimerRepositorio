@@ -26,6 +26,11 @@ class AnalysisEngine:
             no_chase_max_atr=settings.NO_CHASE_MAX_ATR,
             spread_limit=settings.SPREAD_LIMIT,
             volatility_limit=settings.VOLATILITY_LIMIT,
+            max_spread_points=settings.MAX_SPREAD_POINTS,
+            max_entry_distance_from_sweep=(
+                settings.MAX_ENTRY_DISTANCE_FROM_SWEEP
+            ),
+            min_planned_rr=settings.MIN_PLANNED_RR,
         )
         self.journal = journal
         self.running = False
@@ -90,6 +95,15 @@ class AnalysisEngine:
                 "entry_reason": signal_report["entry_reason"],
                 "blocked_by_context": signal_report["blocked_by_context"],
                 "blocked_by_entry_score": signal_report["blocked_by_entry_score"],
+                "blocked_by_quality_guard": signal_report[
+                    "blocked_by_quality_guard"
+                ],
+                "quality_block_reason": signal_report["quality_block_reason"],
+                "spread": signal_report["spread"],
+                "entry_distance_from_sweep": signal_report[
+                    "entry_distance_from_sweep"
+                ],
+                "planned_rr": signal_report["planned_rr"],
                 "no_chase_blocked": signal_report["no_chase_blocked"],
                 "no_chase_reason": signal_report["no_chase_reason"],
                 "extension_atr": signal_report["extension_atr"],

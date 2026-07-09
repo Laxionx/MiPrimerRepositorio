@@ -23,6 +23,7 @@ def sweep_report(direction: str, level: float, price: float) -> dict:
             "type": direction,
             "entry_price": price,
             "stop_loss": price - 1 if direction == "LONG" else price + 1,
+            "take_profit": price + 2 if direction == "LONG" else price - 2,
         },
         "liquidity": {
             "recent_low": level if direction == "LONG" else level - 5,
@@ -155,6 +156,83 @@ def test_no_chase_blocks_extended_entry():
     )
     assert result["extension_atr"] > 0.6
     assert result["no_chase_blocked"] is True
+
+
+def test_quality_guard_blocks_high_spread():
+    result = EntryScorer(max_spread_points=6).evaluate(
+        sweep_report("LONG", level=99.5, price=100.0),
+        candles([100.0] * 20),
+        {
+            "market_regime": "trend",
+            "context_bias": "long",
+            "context_score": 75,
+            "context_reason": "Trend continuation",
+        },
+        {"spread": 7, "volatility": 0.001},
+    )
+
+    assert result["blocked_by_quality_guard"] is True
+    assert result["quality_block_reason"] == "spread_exceeds_maximum"
+    assert result["spread"] == 7
+
+
+def test_quality_guard_blocks_excessive_entry_distance():
+    result = EntryScorer(max_entry_distance_from_sweep=10).evaluate(
+        sweep_report("LONG", level=100.0, price=111.0),
+        candles([110.0] * 19 + [111.0]),
+        {
+            "market_regime": "trend",
+            "context_bias": "long",
+            "context_score": 75,
+            "context_reason": "Trend continuation",
+        },
+        {"spread": 1, "volatility": 0.001},
+    )
+
+    assert result["blocked_by_quality_guard"] is True
+    assert result["quality_block_reason"] == "entry_distance_exceeds_maximum"
+    assert result["entry_distance_from_sweep"] == 11.0
+
+
+def test_quality_guard_blocks_low_planned_rr():
+    report = sweep_report("LONG", level=99.5, price=100.0)
+    report["setup"]["take_profit"] = 100.5
+
+    result = EntryScorer(min_planned_rr=1.0).evaluate(
+        report,
+        candles([100.0] * 20),
+        {
+            "market_regime": "trend",
+            "context_bias": "long",
+            "context_score": 75,
+            "context_reason": "Trend continuation",
+        },
+        {"spread": 1, "volatility": 0.001},
+    )
+
+    assert result["blocked_by_quality_guard"] is True
+    assert result["quality_block_reason"] == "planned_rr_below_minimum"
+    assert result["planned_rr"] == 0.5
+
+
+def test_quality_guard_allows_good_setup_and_exposes_json_fields():
+    result = EntryScorer().evaluate(
+        sweep_report("LONG", level=99.5, price=100.0),
+        candles([100.0] * 20),
+        {
+            "market_regime": "trend",
+            "context_bias": "long",
+            "context_score": 75,
+            "context_reason": "Trend continuation",
+        },
+        {"spread": 5, "volatility": 0.001},
+    )
+
+    assert result["blocked_by_quality_guard"] is False
+    assert result["quality_block_reason"] is None
+    assert result["spread"] == 5
+    assert result["entry_distance_from_sweep"] == 0.5
+    assert result["planned_rr"] == 2.0
 
 
 def test_entry_score_varies_for_weak_and_strong_accepted_sweeps():

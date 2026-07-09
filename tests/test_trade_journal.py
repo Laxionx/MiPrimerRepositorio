@@ -98,6 +98,29 @@ def test_blocked_aqtf_setup_is_logged(tmp_path):
     ]
 
 
+def test_quality_guard_block_is_logged(tmp_path):
+    journal = PaperForwardJournal(tmp_path)
+    recommendation = setup_record(blocked=False)
+    recommendation.update(
+        {
+            "blocked_by_quality_guard": True,
+            "quality_block_reason": "spread_exceeds_maximum",
+            "spread": 7.0,
+            "entry_distance_from_sweep": 2.0,
+            "planned_rr": 1.5,
+        }
+    )
+
+    journal.record_setup(recommendation)
+
+    record = read_jsonl(tmp_path / "blocked_setups.jsonl")[0]
+    assert record["block_reason"] == "spread_exceeds_maximum"
+    assert record["blocked_by_quality_guard"] is True
+    assert record["spread"] == 7.0
+    assert record["entry_distance_from_sweep"] == 2.0
+    assert record["planned_rr"] == 1.5
+
+
 def test_daily_summary_combines_setups_and_completed_trades(tmp_path):
     journal = PaperForwardJournal(tmp_path)
     journal.record_setup(setup_record(blocked=False))

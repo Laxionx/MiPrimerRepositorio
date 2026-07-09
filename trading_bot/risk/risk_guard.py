@@ -1,6 +1,5 @@
 from typing import Dict, Any
 from trading_bot.core.interfaces import RiskGuard
-from trading_bot.utils.logger import logger
 from trading_bot.config.settings import settings as bot_settings
 
 class SimpleRiskGuard(RiskGuard):
@@ -27,6 +26,7 @@ class SimpleRiskGuard(RiskGuard):
             setup_data.get("blocked_by_context")
             or setup_data.get("blocked_by_entry_score")
             or setup_data.get("no_chase_blocked")
+            or setup_data.get("blocked_by_quality_guard")
         ):
             return {"allowed": False, "reason": "AQTF context or entry filter blocked setup"}
 

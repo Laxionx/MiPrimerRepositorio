@@ -295,4 +295,5 @@ class BacktestRunner:
             entry_quality["blocked_by_context"]
             or entry_quality["blocked_by_entry_score"]
             or entry_quality["no_chase_blocked"]
+            or entry_quality.get("blocked_by_quality_guard", False)
         )
