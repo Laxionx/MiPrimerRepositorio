@@ -106,3 +106,13 @@ python -m trading_bot.research.edge_v2_conditional_failure_analysis --batch-dir 
 ```
 The companion casebook JSON is written beside the report. It is diagnostic-only:
 the slice is not a trading rule and any apparent discriminator needs more research.
+
+## Edge V2 candidate discriminator audit
+
+Audit only the preselected `risk_points`, `candle_range`, and `reward_points`
+inside the same slice, with conservative leakage labels and report-only ratios:
+```bash
+python -m trading_bot.research.edge_v2_candidate_discriminator_audit --batch-dir reports/edge_v2_batch --condition lower_quartile_closes_eq_0 --out reports/edge_v2_batch/lqc0_discriminator_audit.json
+```
+Unknown timing remains unknown; normalized groups and calibration diagnostics are
+research aids, not strategy rules.
