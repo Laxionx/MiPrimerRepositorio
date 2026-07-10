@@ -126,3 +126,14 @@ python -m trading_bot.research.edge_v2_candidate_discriminator_audit --batch-dir
 ```
 Unknown-timing fields and any normalized field with an unknown or risky source are
 excluded in strict mode. This remains diagnostic-only, not a strategy rule.
+
+## Edge V2 strict pretrade candidate replication
+
+Replicate only code-verified `pre_trade`/`low`-leakage candidates over existing
+journals and the three fixed `lower_quartile_closes == 0` slices:
+```bash
+python -m trading_bot.research.edge_v2_strict_pretrade_replication --batch-dir reports/edge_v2_batch --condition lower_quartile_closes_eq_0 --provenance reports/edge_v2_batch/feature_timing_provenance.json --out reports/edge_v2_batch/strict_pretrade_replication.json
+```
+`candle_range` and all ratios that depend on it are excluded because their
+provenance is `at_entry`/medium risk. The report is diagnostic-only: positive
+cohorts do not create strategy rules or modify risk or execution behavior.
