@@ -132,6 +132,33 @@ def test_replay_never_sends_future_candles_to_signal_detector(tmp_path):
         assert max(timestamps) <= data.iloc[call_index]["time"]
 
 
+def test_completed_h1_excludes_the_in_progress_hour():
+    history = pd.DataFrame(
+        {
+            "time": pd.to_datetime(
+                [
+                    "2026-07-08T09:00:00Z",
+                    "2026-07-08T09:55:00Z",
+                    "2026-07-08T10:00:00Z",
+                    "2026-07-08T10:05:00Z",
+                ]
+            ),
+            "open": [10.0, 10.0, 20.0, 20.0],
+            "high": [11.0, 12.0, 21.0, 30.0],
+            "low": [9.0, 8.0, 19.0, 10.0],
+            "close": [10.0, 10.0, 20.0, 20.0],
+            "tick_volume": [100, 100, 100, 100],
+        }
+    )
+
+    completed = BacktestRunner._completed_h1(
+        history, pd.Timestamp("2026-07-08T10:05:00Z")
+    )
+
+    assert completed["time"].tolist() == [pd.Timestamp("2026-07-08T10:00:00Z")]
+    assert completed.iloc[0]["high"] == 12.0
+
+
 def test_same_candle_stop_and_target_uses_stop_first(tmp_path):
     runner(tmp_path).run(candles())
 
