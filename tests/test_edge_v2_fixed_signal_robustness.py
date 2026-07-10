@@ -37,6 +37,7 @@ def test_raw_value_and_cumulative_groups_are_diagnostic(tmp_path):
     assert report["cumulative_group_summary"]["lower_quartile_closes_lte_1"]["trade_count"] == 16
     assert report["rank_partition_summary"]["bottom_25"]["trade_count"] == 10
     assert report["rank_vs_raw_comparison"]["rank_bottom_25"]["diagnostic_only"] is True
+    assert report["rank_vs_raw_comparison"]["comparison"] in {"agree", "diverge"}
 
 
 def test_missing_or_empty_feature_is_safe(tmp_path):
@@ -66,7 +67,7 @@ def test_temporal_and_calibration_threshold_use_only_first_half(tmp_path):
     run = report["per_input_results"][0]
     calibration = run["calibration_test"]
 
-    assert set(run["temporal_splits"]) >= {"first_half", "second_half"}
+    assert set(run["temporal_splits"]) >= {"first_half", "second_half", "first_third"}
     assert calibration["calibrated_q25_threshold"] == 0.0
     assert calibration["test_trade_count"] == 20
     assert calibration["test_selected_trade_count"] == 4

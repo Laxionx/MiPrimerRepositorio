@@ -85,3 +85,14 @@ outputs without searching thresholds:
 python -m trading_bot.research.edge_v2_cohort_replication --batch-output reports/edge_v2_batch --out reports/edge_v2_fixed_cohort_replication.json
 ```
 The report is diagnostic-only and does not recommend strategy changes.
+
+## Edge V2 fixed signal robustness
+
+Compare the preselected `lower_quartile_closes` signal by raw values, fixed
+cumulative groups, rank diagnostics, time splits, and a first-half calibration
+applied to the second half:
+```bash
+python -m trading_bot.research.edge_v2_fixed_signal_robustness --batch-dir reports/edge_v2_batch --out reports/edge_v2_batch/lower_quartile_closes_robustness.json
+```
+Raw values are observable; a rank `bottom_25` bucket is diagnostic and not a
+directly tradable threshold. A single calibration/test split is not edge confirmation.
