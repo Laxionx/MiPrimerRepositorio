@@ -116,3 +116,13 @@ python -m trading_bot.research.edge_v2_candidate_discriminator_audit --batch-dir
 ```
 Unknown timing remains unknown; normalized groups and calibration diagnostics are
 research aids, not strategy rules.
+
+## Edge V2 feature timing provenance
+
+Build the source-backed registry before treating a discriminator as pre-trade:
+```bash
+python -m trading_bot.research.edge_v2_feature_timing_provenance --batch-dir reports/edge_v2_batch --out reports/edge_v2_batch/feature_timing_provenance.json
+python -m trading_bot.research.edge_v2_candidate_discriminator_audit --batch-dir reports/edge_v2_batch --condition lower_quartile_closes_eq_0 --provenance reports/edge_v2_batch/feature_timing_provenance.json --strict-pretrade-only --out reports/edge_v2_batch/lqc0_discriminator_audit.json
+```
+Unknown-timing fields and any normalized field with an unknown or risky source are
+excluded in strict mode. This remains diagnostic-only, not a strategy rule.

@@ -15,6 +15,13 @@ from trading_bot.research.edge_v2_feature_separation import (
     calculate_effect_size,
     load_journal_records,
 )
+from trading_bot.research.edge_v2_feature_timing_provenance import (
+    combine_source_provenance,
+    get_field_provenance,
+    is_verified_pretrade_low,
+    load_provenance_file,
+    strict_exclusion_reason,
+)
 
 
 DEFAULT_CONDITION = "lower_quartile_closes_eq_0"
@@ -44,36 +51,63 @@ NORMALIZATION_SPECS = {
 }
 
 
-def field_leakage_metadata(field: str) -> dict[str, str]:
-    """Classify timing conservatively; journals do not prove provenance."""
-    if field in OUTCOME_FIELDS:
+def field_leakage_metadata(
+    field: str, provenance: dict[str, dict[str, Any]] | None = None
+) -> dict[str, str]:
+    """Return conservative timing metadata from the source-backed registry."""
+    if provenance is None and field not in OUTCOME_FIELDS:
         return {
-            "availability_timing": "post_trade",
-            "leakage_risk": "high",
-            "reason": "Outcome-derived field is only known after trade completion.",
+            "availability_timing": "unknown",
+            "leakage_risk": "unknown",
+            "reason": "No provenance report was supplied; default classification remains conservative.",
         }
-    reasons = {
-        "risk_points": "Stop-distance provenance is not recorded at field level.",
-        "reward_points": "Target-distance provenance is not recorded at field level.",
-        "candle_range": "Journal data does not prove the candle was closed at signal time.",
-    }
+    entry = get_field_provenance(field, provenance)
     return {
-        "availability_timing": "unknown",
-        "leakage_risk": "unknown",
-        "reason": reasons.get(field, "Journal records do not provide field-level timing provenance."),
+        "availability_timing": str(entry["availability_timing"]),
+        "leakage_risk": str(entry["leakage_risk"]),
+        "reason": str(entry["reason"]),
     }
 
 
 def analyze_candidate_discriminator_records(
-    records: list[dict[str, Any]], *, condition: str = DEFAULT_CONDITION
+    records: list[dict[str, Any]],
+    *,
+    condition: str = DEFAULT_CONDITION,
+    provenance: dict[str, dict[str, Any]] | None = None,
+    provenance_path: str | Path | None = None,
+    strict_pretrade_only: bool = False,
 ) -> dict[str, Any]:
     """Audit fixed candidates inside a preselected condition without tuning."""
+    if provenance is not None and provenance_path is not None:
+        raise ValueError("provide provenance or provenance_path, not both")
+    active_provenance = (
+        load_provenance_file(provenance_path)
+        if provenance_path is not None
+        else provenance
+    )
     selected = _select_condition_records(records, condition)
     first_half, second_half, timestamp_excluded = _chronological_halves(selected)
-    raw = {candidate: _raw_discriminator(candidate, selected) for candidate in CANDIDATES}
-    normalized, unavailable = _normalized_discriminators(selected)
-    calibration = _calibration_diagnostic(first_half, second_half)
-    segments = _segment_checks(selected, first_half, second_half)
+    strict_filter = {"enabled": strict_pretrade_only, "allowed_fields": [], "excluded_fields": []}
+    raw = {}
+    for candidate in CANDIDATES:
+        metadata = field_leakage_metadata(candidate, active_provenance)
+        if strict_pretrade_only and not is_verified_pretrade_low(metadata):
+            strict_filter["excluded_fields"].append(
+                {"field": candidate, "reason": strict_exclusion_reason(metadata)}
+            )
+            continue
+        raw[candidate] = _raw_discriminator(candidate, selected, metadata)
+        if strict_pretrade_only:
+            strict_filter["allowed_fields"].append(candidate)
+    normalized, unavailable = _normalized_discriminators(
+        selected,
+        active_provenance,
+        strict_pretrade_only=strict_pretrade_only,
+        strict_filter=strict_filter,
+    )
+    analyzed_candidates = tuple(raw)
+    calibration = _calibration_diagnostic(first_half, second_half, analyzed_candidates)
+    segments = _segment_checks(selected, first_half, second_half, analyzed_candidates)
     subset_metrics = cohort_metrics(selected)
     flags = _conclusion_flags(subset_metrics, raw, calibration, unavailable, timestamp_excluded)
     return {
@@ -97,10 +131,12 @@ def analyze_candidate_discriminator_records(
         "timestamp_excluded_from_halves": timestamp_excluded,
         "calibration_diagnostic": calibration,
         "outcome_field_metadata": {
-            field: field_leakage_metadata(field)
+            field: field_leakage_metadata(field, active_provenance)
             for field in sorted(OUTCOME_FIELDS)
             if any(field in record for record in records)
         },
+        "provenance_source": str(provenance_path) if provenance_path is not None else None,
+        "strict_pretrade_filter": strict_filter,
         "conclusion_flags": flags,
         "disclaimer": (
             "Diagnostic only. Candidate timing is unknown unless source provenance "
@@ -110,7 +146,11 @@ def analyze_candidate_discriminator_records(
 
 
 def analyze_candidate_discriminator_journals(
-    journal_paths: list[str | Path], *, condition: str = DEFAULT_CONDITION
+    journal_paths: list[str | Path],
+    *,
+    condition: str = DEFAULT_CONDITION,
+    provenance_path: str | Path | None = None,
+    strict_pretrade_only: bool = False,
 ) -> dict[str, Any]:
     _validate_condition(condition)
     runs = []
@@ -122,7 +162,12 @@ def analyze_candidate_discriminator_journals(
         except (OSError, ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             runs.append({"journal_path": str(path), "status": "invalid_or_missing", "reason": str(exc)})
             continue
-        report = analyze_candidate_discriminator_records(rows, condition=condition)
+        report = analyze_candidate_discriminator_records(
+            rows,
+            condition=condition,
+            provenance_path=provenance_path,
+            strict_pretrade_only=strict_pretrade_only,
+        )
         runs.append(
             {
                 "journal_path": str(path),
@@ -141,7 +186,12 @@ def analyze_candidate_discriminator_journals(
         "valid_source_count": sum(run["status"] == "success" for run in runs),
         "invalid_source_count": sum(run["status"] != "success" for run in runs),
         "runs": runs,
-        "aggregate": analyze_candidate_discriminator_records(valid_records, condition=condition),
+        "aggregate": analyze_candidate_discriminator_records(
+            valid_records,
+            condition=condition,
+            provenance_path=provenance_path,
+            strict_pretrade_only=strict_pretrade_only,
+        ),
     }
 
 
@@ -178,10 +228,12 @@ def _validate_condition(condition: str) -> None:
         raise ValueError(f"Unknown predefined condition: {condition}")
 
 
-def _raw_discriminator(candidate: str, records: list[dict[str, Any]]) -> dict[str, Any]:
+def _raw_discriminator(
+    candidate: str, records: list[dict[str, Any]], metadata: dict[str, str]
+) -> dict[str, Any]:
     return {
         "available": bool(_feature_values(records, candidate)),
-        "leakage_metadata": field_leakage_metadata(candidate),
+        "leakage_metadata": metadata,
         "winner_loser_separation": _separation(records, candidate),
         "diagnostic_groups": _rank_groups(records, candidate),
     }
@@ -189,10 +241,28 @@ def _raw_discriminator(candidate: str, records: list[dict[str, Any]]) -> dict[st
 
 def _normalized_discriminators(
     records: list[dict[str, Any]],
+    provenance: dict[str, dict[str, Any]] | None,
+    *,
+    strict_pretrade_only: bool,
+    strict_filter: dict[str, Any],
 ) -> tuple[dict[str, dict[str, Any]], list[str]]:
     reports = {}
     unavailable = []
     for name, (numerator, denominator) in NORMALIZATION_SPECS.items():
+        metadata = combine_source_provenance(
+            name,
+            [
+                {"field": field, **get_field_provenance(field, provenance)}
+                for field in (numerator, denominator)
+            ],
+        )
+        if strict_pretrade_only and not is_verified_pretrade_low(metadata):
+            strict_filter["excluded_fields"].append(
+                {"field": name, "reason": strict_exclusion_reason(metadata)}
+            )
+            continue
+        if strict_pretrade_only:
+            strict_filter["allowed_fields"].append(name)
         augmented = []
         for record in records:
             numerator_value = _number(record.get(numerator))
@@ -201,12 +271,18 @@ def _normalized_discriminators(
                 continue
             augmented.append({**record, name: numerator_value / denominator_value})
         if not augmented:
-            reports[name] = {"available": False, "reason": f"requires {numerator} and nonzero {denominator}"}
+            reports[name] = {
+                "available": False,
+                "reason": f"requires {numerator} and nonzero {denominator}",
+                "leakage_metadata": metadata,
+            }
             unavailable.append(name)
             continue
         reports[name] = {
             "available": True,
             "report_only": True,
+            "source_fields": [numerator, denominator],
+            "leakage_metadata": metadata,
             "winner_loser_separation": _separation(augmented, name),
             "diagnostic_groups": _normalized_groups(augmented, name),
         }
@@ -214,7 +290,10 @@ def _normalized_discriminators(
 
 
 def _segment_checks(
-    records: list[dict[str, Any]], first_half: list[dict[str, Any]], second_half: list[dict[str, Any]]
+    records: list[dict[str, Any]],
+    first_half: list[dict[str, Any]],
+    second_half: list[dict[str, Any]],
+    candidates: tuple[str, ...],
 ) -> dict[str, dict[str, Any]]:
     definitions = {
         "all": records,
@@ -230,7 +309,7 @@ def _segment_checks(
             "trade_count": len(rows),
             "metrics": cohort_metrics(rows),
             "candidate_separation": (
-                {candidate: _separation(rows, candidate) for candidate in CANDIDATES}
+                {candidate: _separation(rows, candidate) for candidate in candidates}
                 if len(rows) >= 2
                 else None
             ),
@@ -257,10 +336,12 @@ def _chronological_halves(
 
 
 def _calibration_diagnostic(
-    calibration_rows: list[dict[str, Any]], test_rows: list[dict[str, Any]]
+    calibration_rows: list[dict[str, Any]],
+    test_rows: list[dict[str, Any]],
+    candidates: tuple[str, ...],
 ) -> dict[str, dict[str, Any]]:
     reports = {}
-    for candidate in CANDIDATES:
+    for candidate in candidates:
         winners = _outcome_values(calibration_rows, candidate, winner=True)
         losers = _outcome_values(calibration_rows, candidate, winner=False)
         values = _feature_values(calibration_rows, candidate)
@@ -502,12 +583,25 @@ def main() -> None:
     parser.add_argument("--journal", action="append", type=Path, default=[])
     parser.add_argument("--batch-dir", action="append", type=Path, default=[])
     parser.add_argument("--condition", choices=PREDEFINED_CONDITIONS, default=DEFAULT_CONDITION)
+    parser.add_argument("--provenance", type=Path)
+    parser.add_argument("--strict-pretrade-only", action="store_true")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     journals = [*args.journal, *discover_batch_journals(args.batch_dir)]
     if not journals:
         parser.error("provide at least one --journal or --batch-dir")
-    print(write_candidate_discriminator_report(analyze_candidate_discriminator_journals(journals, condition=args.condition), args.out))
+    try:
+        report = analyze_candidate_discriminator_journals(
+            journals,
+            condition=args.condition,
+            provenance_path=args.provenance,
+            strict_pretrade_only=args.strict_pretrade_only,
+        )
+    except FileNotFoundError as exc:
+        parser.error(f"provenance file not found: {exc.filename or exc}")
+    except (ValueError, json.JSONDecodeError) as exc:
+        parser.error(f"invalid provenance: {exc}")
+    print(write_candidate_discriminator_report(report, args.out))
 
 
 if __name__ == "__main__":
