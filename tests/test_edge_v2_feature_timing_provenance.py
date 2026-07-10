@@ -11,7 +11,16 @@ EXPECTED_FIELDS = {
     "risk_points", "reward_points", "candle_range", "prior_range_points",
     "lower_quartile_closes", "price_position_in_range", "pressure_score",
     "compression_score", "sweep_depth", "reclaim_speed", "r_multiple", "pnl",
-    "outcome",
+    "outcome", "range_duration_bars", "atr_contraction_pct", "recent_range_points",
+    "upper_quartile_closes", "average_pullback_depth",
+}
+
+EXPANDED_STRICT_FIELDS = {
+    "range_duration_bars",
+    "atr_contraction_pct",
+    "recent_range_points",
+    "upper_quartile_closes",
+    "average_pullback_depth",
 }
 
 
@@ -50,6 +59,17 @@ def test_code_verified_and_unknown_and_outcome_classifications():
         item = provenance.get_field_provenance(field)
         assert item["availability_timing"] == "post_trade"
         assert item["leakage_risk"] == "high"
+
+
+def test_expanded_edge_v3_fields_are_code_verified_strict_pretrade():
+    for field in EXPANDED_STRICT_FIELDS:
+        entry = provenance.get_field_provenance(field)
+
+        assert entry["source_basis"] == "code_verified"
+        assert entry["availability_timing"] == "pre_trade"
+        assert entry["leakage_risk"] == "low"
+        assert entry["source_module_or_function"]
+        assert entry["depends_on_fields"]
 
 
 def test_normalized_fields_inherit_worst_source_provenance():

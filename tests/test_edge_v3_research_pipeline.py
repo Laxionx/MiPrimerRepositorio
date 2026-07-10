@@ -35,6 +35,19 @@ def _trade(index, pnl, *, symbol="XAUUSD", timeframe="M5", **extra):
         "pressure_score": 70 if pnl > 0 else 30,
         "price_position_in_range": 0.8 if pnl > 0 else 0.2,
         "compression_score": 60 if pnl > 0 else 20,
+        "range_duration_bars": 4,
+        "atr_contraction_pct": 25.0,
+        "recent_range_points": 8.0,
+        "upper_quartile_closes": 4,
+        "average_pullback_depth": 0.2,
+        "is_compressing": True,
+        "pressure_direction": "long",
+        "market_regime": "trend",
+        "context_bias": "long",
+        "context_reason": "fixture-only context",
+        "spread": 0.2,
+        "entry": 100.0,
+        "entry_distance_from_sweep": 0.5,
         **extra,
     }
 
@@ -82,6 +95,69 @@ def test_matrix_adds_only_strict_deterministic_derivatives(tmp_path):
     assert "risk_points_over_atr" in result["predictors"]
     assert "risk_points_over_candle_range" not in result["predictors"]
     assert result["records"][0]["predictors"]["reward_to_risk_planned"] == 4
+
+
+def test_matrix_admits_expanded_strict_fields_but_keeps_exclusions(tmp_path):
+    batch = tmp_path / "batch"
+    _write_journal(batch / "run" / "journal" / "trades.jsonl", [_trade(1, 2)])
+    provenance = _provenance()
+    for field in ("spread", "entry", "entry_distance_from_sweep"):
+        provenance[field] = {
+            "field_name": field,
+            "category": "execution",
+            "availability_timing": "at_entry",
+            "leakage_risk": "medium",
+            "source_basis": "code_verified",
+            "source_module_or_function": "test fixture",
+            "depends_on_fields": ["entry bar"],
+            "depends_on_exit_price": False,
+            "depends_on_pnl": False,
+            "depends_on_future_bars": False,
+            "depends_on_realized_outcome": False,
+            "reason": "Explicitly at-entry for the exclusion check.",
+        }
+    for field in ("is_compressing", "pressure_direction", "market_regime", "context_bias", "context_reason"):
+        provenance[field] = {
+            "field_name": field,
+            "category": "categorical_or_boolean",
+            "availability_timing": "pre_trade",
+            "leakage_risk": "low",
+            "source_basis": "code_verified",
+            "source_module_or_function": "test fixture",
+            "depends_on_fields": ["historical bars"],
+            "depends_on_exit_price": False,
+            "depends_on_pnl": False,
+            "depends_on_future_bars": False,
+            "depends_on_realized_outcome": False,
+            "reason": "The matrix must not coerce categories or booleans to numbers.",
+        }
+
+    result = matrix.build_pretrade_feature_matrix([batch], provenance=provenance)
+
+    assert {
+        "range_duration_bars",
+        "atr_contraction_pct",
+        "recent_range_points",
+        "upper_quartile_closes",
+        "average_pullback_depth",
+    }.issubset(result["predictors"])
+    assert not {
+        "lower_quartile_closes",
+        "spread",
+        "entry",
+        "entry_distance_from_sweep",
+        "pnl",
+        "outcome",
+        "r_multiple",
+        "exit_price",
+        "timestamp_close",
+        "bars_held",
+        "is_compressing",
+        "pressure_direction",
+        "market_regime",
+        "context_bias",
+        "context_reason",
+    } & set(result["predictors"])
 
 
 def test_discovery_has_non_overlapping_cohorts_and_no_lqc_predictor():
