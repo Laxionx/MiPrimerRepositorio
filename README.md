@@ -96,3 +96,13 @@ python -m trading_bot.research.edge_v2_fixed_signal_robustness --batch-dir repor
 ```
 Raw values are observable; a rank `bottom_25` bucket is diagnostic and not a
 directly tradable threshold. A single calibration/test split is not edge confirmation.
+
+## Edge V2 conditional failure analysis
+
+Inspect winners and losers inside the preselected `lower_quartile_closes == 0`
+slice, including a compact casebook for manual TradingView review:
+```bash
+python -m trading_bot.research.edge_v2_conditional_failure_analysis --batch-dir reports/edge_v2_batch --condition lower_quartile_closes_eq_0 --out reports/edge_v2_batch/lqc0_failure_analysis.json
+```
+The companion casebook JSON is written beside the report. It is diagnostic-only:
+the slice is not a trading rule and any apparent discriminator needs more research.
