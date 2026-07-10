@@ -70,3 +70,70 @@ python -m trading_bot.research.edge_v2_mt5_pipeline --symbol XAUUSD --timeframe 
 It writes local candles, journal, and JSON report artifacts. `environment_blocked`
 means the local terminal cannot provide the requested history; no fallback data or
 diagnostic claim is produced.
+
+## Edge V2 cohort diagnostics and fixed replication
+
+`edge_v2_cohort_report` assigns numeric values to mutually exclusive, stable-rank
+`bottom_25`, `middle_50`, and `top_25` buckets. Its
+`cohort_assignment_diagnostics` records counts, overlap checks, distribution
+degeneracy, and whether ties would have inflated the former threshold-group
+method; a positive cohort remains diagnostic only.
+
+Replicate the fixed `lower_quartile_closes=bottom_25` cohort across existing batch
+outputs without searching thresholds:
+```bash
+python -m trading_bot.research.edge_v2_cohort_replication --batch-output reports/edge_v2_batch --out reports/edge_v2_fixed_cohort_replication.json
+```
+The report is diagnostic-only and does not recommend strategy changes.
+
+## Edge V2 fixed signal robustness
+
+Compare the preselected `lower_quartile_closes` signal by raw values, fixed
+cumulative groups, rank diagnostics, time splits, and a first-half calibration
+applied to the second half:
+```bash
+python -m trading_bot.research.edge_v2_fixed_signal_robustness --batch-dir reports/edge_v2_batch --out reports/edge_v2_batch/lower_quartile_closes_robustness.json
+```
+Raw values are observable; a rank `bottom_25` bucket is diagnostic and not a
+directly tradable threshold. A single calibration/test split is not edge confirmation.
+
+## Edge V2 conditional failure analysis
+
+Inspect winners and losers inside the preselected `lower_quartile_closes == 0`
+slice, including a compact casebook for manual TradingView review:
+```bash
+python -m trading_bot.research.edge_v2_conditional_failure_analysis --batch-dir reports/edge_v2_batch --condition lower_quartile_closes_eq_0 --out reports/edge_v2_batch/lqc0_failure_analysis.json
+```
+The companion casebook JSON is written beside the report. It is diagnostic-only:
+the slice is not a trading rule and any apparent discriminator needs more research.
+
+## Edge V2 candidate discriminator audit
+
+Audit only the preselected `risk_points`, `candle_range`, and `reward_points`
+inside the same slice, with conservative leakage labels and report-only ratios:
+```bash
+python -m trading_bot.research.edge_v2_candidate_discriminator_audit --batch-dir reports/edge_v2_batch --condition lower_quartile_closes_eq_0 --out reports/edge_v2_batch/lqc0_discriminator_audit.json
+```
+Unknown timing remains unknown; normalized groups and calibration diagnostics are
+research aids, not strategy rules.
+
+## Edge V2 feature timing provenance
+
+Build the source-backed registry before treating a discriminator as pre-trade:
+```bash
+python -m trading_bot.research.edge_v2_feature_timing_provenance --batch-dir reports/edge_v2_batch --out reports/edge_v2_batch/feature_timing_provenance.json
+python -m trading_bot.research.edge_v2_candidate_discriminator_audit --batch-dir reports/edge_v2_batch --condition lower_quartile_closes_eq_0 --provenance reports/edge_v2_batch/feature_timing_provenance.json --strict-pretrade-only --out reports/edge_v2_batch/lqc0_discriminator_audit.json
+```
+Unknown-timing fields and any normalized field with an unknown or risky source are
+excluded in strict mode. This remains diagnostic-only, not a strategy rule.
+
+## Edge V2 strict pretrade candidate replication
+
+Replicate only code-verified `pre_trade`/`low`-leakage candidates over existing
+journals and the three fixed `lower_quartile_closes == 0` slices:
+```bash
+python -m trading_bot.research.edge_v2_strict_pretrade_replication --batch-dir reports/edge_v2_batch --condition lower_quartile_closes_eq_0 --provenance reports/edge_v2_batch/feature_timing_provenance.json --out reports/edge_v2_batch/strict_pretrade_replication.json
+```
+`candle_range` and all ratios that depend on it are excluded because their
+provenance is `at_entry`/medium risk. The report is diagnostic-only: positive
+cohorts do not create strategy rules or modify risk or execution behavior.
