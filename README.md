@@ -70,3 +70,18 @@ python -m trading_bot.research.edge_v2_mt5_pipeline --symbol XAUUSD --timeframe 
 It writes local candles, journal, and JSON report artifacts. `environment_blocked`
 means the local terminal cannot provide the requested history; no fallback data or
 diagnostic claim is produced.
+
+## Edge V2 cohort diagnostics and fixed replication
+
+`edge_v2_cohort_report` assigns numeric values to mutually exclusive, stable-rank
+`bottom_25`, `middle_50`, and `top_25` buckets. Its
+`cohort_assignment_diagnostics` records counts, overlap checks, distribution
+degeneracy, and whether ties would have inflated the former threshold-group
+method; a positive cohort remains diagnostic only.
+
+Replicate the fixed `lower_quartile_closes=bottom_25` cohort across existing batch
+outputs without searching thresholds:
+```bash
+python -m trading_bot.research.edge_v2_cohort_replication --batch-output reports/edge_v2_batch --out reports/edge_v2_fixed_cohort_replication.json
+```
+The report is diagnostic-only and does not recommend strategy changes.

@@ -66,7 +66,9 @@ def test_duplicate_and_constant_values_are_partitioned_and_diagnosed():
         "top_25": 21,
     }
     assert pressure["overlap_diagnostics"]["overlap_count_between_buckets"] == 0
-    assert "inflated_bucket_due_to_ties" in pressure["warnings"]
+    assert pressure["threshold_ties_caused_inflated_cohort_size"] is False
+    assert pressure["legacy_threshold_groups_would_be_inflated"] is True
+    assert "threshold_ties_would_inflate_legacy_threshold_groups" in pressure["warnings"]
 
     constant = cohort.analyze_cohorts([{"pnl": 1, "compression_score": 7} for _ in range(12)])
     diagnostic = constant["cohort_assignment_diagnostics"]["compression_score"]
@@ -88,10 +90,11 @@ def test_null_values_are_skipped_without_breaking_bucket_coverage():
             {"pnl": -1, "lower_quartile_closes": 3},
             {"pnl": 1, "lower_quartile_closes": None},
             {"pnl": -1},
+            {"pnl": 1, "lower_quartile_closes": "NaN"},
         ]
     )
     diagnostic = report["cohort_assignment_diagnostics"]["lower_quartile_closes"]
-    assert diagnostic["null_count"] == 2
+    assert diagnostic["null_count"] == 3
     assert diagnostic["non_null_count"] == 4
     assert sum(diagnostic["bucket_counts"].values()) == 4
 
@@ -103,13 +106,23 @@ def _write_journal(path, rows):
 def test_fixed_cohort_replication_for_one_and_multiple_journals(tmp_path):
     first = tmp_path / "xauusd_m5.jsonl"
     second = tmp_path / "xauusd_m15.jsonl"
-    _write_journal(first, records())
-    _write_journal(second, [{**row, "timeframe": "M15"} for row in records()])
+    first_rows = [
+        {
+            **row,
+            "symbol": "XAUUSD",
+            "timeframe": "M5",
+            "timestamp_open": f"2026-01-01T00:{index:02d}:00+00:00",
+        }
+        for index, row in enumerate(records())
+    ]
+    _write_journal(first, first_rows)
+    _write_journal(second, [{**row, "timeframe": "M15"} for row in first_rows])
 
     one = replication.replicate_fixed_cohorts([first])
     assert one["diagnostic_only"] is True
     assert one["fixed_cohorts_tested"] == [{"feature": "lower_quartile_closes", "bucket": "bottom_25"}]
     assert one["per_run_results"][0]["cohorts"]["lower_quartile_closes_bottom_25"]["cohort_trade_count"] == 10
+    assert one["per_run_results"][0]["date_range"]["start"] == "2026-01-01T00:00:00+00:00"
 
     multiple = replication.replicate_fixed_cohorts([first, second])
     aggregate = multiple["aggregate_results"]["lower_quartile_closes_bottom_25"]
