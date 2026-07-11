@@ -1,5 +1,6 @@
 import inspect
 import json
+import sys
 
 from trading_bot.data.mt5_history import MT5HistoryError
 from trading_bot.research import edge_v2_mt5_batch
@@ -56,6 +57,50 @@ def test_batch_continues_after_blocked_run_and_aggregates(tmp_path, monkeypatch)
     assert summary["total_candles"] == 1000
     assert summary["per_run_summary"][1]["status"] == "environment_blocked"
     assert summary["submit_allowed"] is False
+
+
+def test_batch_forwards_explicit_pagination_options(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_pipeline(**kwargs):
+        calls.append(kwargs)
+        return {"report": report(), "report_path": kwargs["out_dir"] / "report.json"}
+
+    monkeypatch.setattr(edge_v2_mt5_batch, "run_edge_v2_mt5_research", fake_pipeline)
+    edge_v2_mt5_batch.run_edge_v2_mt5_batch(
+        [plan_item()], out_dir=tmp_path, history_mode="paginated", page_size=2
+    )
+
+    assert calls[0]["history_mode"] == "paginated"
+    assert calls[0]["page_size"] == 2
+
+
+def test_batch_cli_forwards_paginated_options(tmp_path, monkeypatch):
+    captured = {}
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps([plan_item()]), encoding="utf-8")
+
+    def fake_batch(plan_data, **kwargs):
+        captured["plan"] = plan_data
+        captured.update(kwargs)
+
+    monkeypatch.setattr(edge_v2_mt5_batch, "run_edge_v2_mt5_batch", fake_batch)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "edge_v2_mt5_batch", "--plan", str(plan), "--out-dir", str(tmp_path),
+            "--history-mode", "paginated", "--page-size", "2", "--include-current-bar",
+            "--allow-partial-history",
+        ],
+    )
+
+    edge_v2_mt5_batch.main()
+
+    assert captured["history_mode"] == "paginated"
+    assert captured["page_size"] == 2
+    assert captured["include_current_bar"] is True
+    assert captured["require_complete"] is False
 
 
 def test_aggregate_reports_direction_consistency_and_stability():
