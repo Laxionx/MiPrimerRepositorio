@@ -12,6 +12,15 @@ def outcome_distribution(records: list[dict[str, Any]]) -> dict[str, Any]:
     values = [float(record["r_multiple"]) for record in records if record.get("r_multiple") is not None]
     winners = [float(record["pnl"]) for record in records if float(record.get("pnl", 0)) > 0]
     losers = [abs(float(record["pnl"])) for record in records if float(record.get("pnl", 0)) < 0]
+    mean_win = mean(winners)
+    mean_loss = mean(losers)
+    payoff_ratio_flags = []
+    if mean_win is None:
+        payoff_ratio_flags.append("no_winners")
+    if mean_loss is None:
+        payoff_ratio_flags.append("no_losers")
+    if mean_win is None and mean_loss is None:
+        payoff_ratio_flags.append("empty_or_no_resolved_outcomes")
     return {
         "total_trades": len(records),
         "wins": outcomes["win"],
@@ -19,7 +28,11 @@ def outcome_distribution(records: list[dict[str, Any]]) -> dict[str, Any]:
         "breakeven": outcomes["breakeven"],
         "r_distribution": summary(values),
         "expectancy_r": mean(values),
-        "payoff_ratio": mean(winners) / mean(losers) if losers and mean(losers) else None,
+        "mean_win": mean_win,
+        "mean_loss": mean_loss,
+        "payoff_ratio": mean_win / mean_loss if mean_win is not None and mean_loss is not None else None,
+        "payoff_ratio_flags": payoff_ratio_flags,
+        "payoff_ratio_reason": "; ".join(payoff_ratio_flags) or None,
         "win_loss_ratio": len(winners) / len(losers) if losers else None,
         "bars_held_distribution": summary(
             [float(record["bars_held"]) for record in records if record.get("bars_held") is not None]
