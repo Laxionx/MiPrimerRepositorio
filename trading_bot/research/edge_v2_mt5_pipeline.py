@@ -7,6 +7,7 @@ from typing import Any
 from trading_bot.backtest.runner import BacktestRunner, load_historical_csv
 from trading_bot.data.mt5_history import (
     MT5HistoryError,
+    export_paginated_from_local_terminal,
     export_range_from_local_terminal,
 )
 from trading_bot.journal.paper_forward import PaperForwardJournal
@@ -24,22 +25,46 @@ def run_edge_v2_mt5_research(
     start: str,
     end: str,
     out_dir: str | Path,
+    history_mode: str = "range",
+    page_size: int = 5_000,
+    include_current_bar: bool = False,
+    require_complete: bool = True,
     gateway: Any | None = None,
 ) -> dict[str, Any]:
     """Export local MT5 candles and run a read-only Edge V2 research workflow."""
     output_dir = Path(out_dir)
     candles_path = output_dir / "mt5_history.csv"
+    manifest_path = output_dir / "mt5_history_manifest.json"
     logs_dir = output_dir / "journal"
     report_path = output_dir / "edge_v2_feature_separation.json"
 
-    exported_path = export_range_from_local_terminal(
-        symbol=symbol,
-        timeframe=timeframe,
-        start=start,
-        end=end,
-        output=candles_path,
-        gateway=gateway,
-    )
+    if history_mode == "range":
+        exported_path = export_range_from_local_terminal(
+            symbol=symbol,
+            timeframe=timeframe,
+            start=start,
+            end=end,
+            output=candles_path,
+            gateway=gateway,
+        )
+        pagination_manifest_path = None
+    elif history_mode == "paginated":
+        export = export_paginated_from_local_terminal(
+            symbol=symbol,
+            timeframe=timeframe,
+            start=start,
+            end=end,
+            output=candles_path,
+            manifest_out=manifest_path,
+            page_size=page_size,
+            include_current_bar=include_current_bar,
+            require_complete=require_complete,
+            gateway=gateway,
+        )
+        exported_path = export.csv_path
+        pagination_manifest_path = export.manifest_path
+    else:
+        raise ValueError("history_mode must be range or paginated")
     candles = load_historical_csv(exported_path)
     journal = PaperForwardJournal(logs_dir)
     BacktestRunner(
@@ -58,6 +83,7 @@ def run_edge_v2_mt5_research(
             "symbol": symbol,
             "timeframe": timeframe,
             "date_range": {"start": start, "end": end},
+            "history_mode": history_mode,
             "data_provider": "mt5",
             "candle_count": len(candles),
             "trade_count": len(records),
@@ -78,6 +104,7 @@ def run_edge_v2_mt5_research(
     write_feature_separation_report(report, report_path)
     return {
         "candles_path": exported_path,
+        "manifest_path": pagination_manifest_path,
         "journal_path": journal_path,
         "report_path": report_path,
         "report": report,
@@ -104,6 +131,10 @@ def main() -> None:
     parser.add_argument("--start", required=True)
     parser.add_argument("--end", required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
+    parser.add_argument("--history-mode", choices=["range", "paginated"], default="range")
+    parser.add_argument("--page-size", type=int, default=5_000)
+    parser.add_argument("--include-current-bar", action="store_true")
+    parser.add_argument("--allow-partial-history", action="store_true")
     args = parser.parse_args()
     try:
         result = run_edge_v2_mt5_research(
@@ -112,6 +143,10 @@ def main() -> None:
             start=args.start,
             end=args.end,
             out_dir=args.out_dir,
+            history_mode=args.history_mode,
+            page_size=args.page_size,
+            include_current_bar=args.include_current_bar,
+            require_complete=not args.allow_partial_history,
         )
     except MT5HistoryError as exc:
         raise SystemExit(f"environment_blocked: {exc}") from exc

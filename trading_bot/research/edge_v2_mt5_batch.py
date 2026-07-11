@@ -31,6 +31,10 @@ def run_edge_v2_mt5_batch(
     *,
     out_dir: str | Path,
     strict: bool = False,
+    history_mode: str = "range",
+    page_size: int = 5_000,
+    include_current_bar: bool = False,
+    require_complete: bool = True,
 ) -> dict[str, Any]:
     root = Path(out_dir)
     successful: list[dict[str, Any]] = []
@@ -38,7 +42,14 @@ def run_edge_v2_mt5_batch(
     for index, item in enumerate(plan, start=1):
         run_id = f"run_{index:03d}_{item['symbol'].lower()}_{item['timeframe'].lower()}"
         try:
-            result = run_edge_v2_mt5_research(**item, out_dir=root / run_id)
+            result = run_edge_v2_mt5_research(
+                **item,
+                out_dir=root / run_id,
+                history_mode=history_mode,
+                page_size=page_size,
+                include_current_bar=include_current_bar,
+                require_complete=require_complete,
+            )
             report = result["report"]
             successful.append({"run_id": run_id, "features": report["features"]})
             per_run.append({"run_id": run_id, "status": "success", **item, **_counts(report)})
@@ -151,11 +162,19 @@ def main() -> None:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--history-mode", choices=["range", "paginated"], default="range")
+    parser.add_argument("--page-size", type=int, default=5_000)
+    parser.add_argument("--include-current-bar", action="store_true")
+    parser.add_argument("--allow-partial-history", action="store_true")
     args = parser.parse_args()
     run_edge_v2_mt5_batch(
         load_batch_plan(args.plan),
         out_dir=args.out_dir,
         strict=args.strict,
+        history_mode=args.history_mode,
+        page_size=args.page_size,
+        include_current_bar=args.include_current_bar,
+        require_complete=not args.allow_partial_history,
     )
     print(args.out_dir / "edge_v2_batch_summary.json")
 
