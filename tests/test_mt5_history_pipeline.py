@@ -38,7 +38,7 @@ class FakeMT5:
         return (1, "terminal unavailable")
 
     def symbol_info(self, symbol):
-        return SimpleNamespace(name=symbol) if self.symbol_result else None
+        return SimpleNamespace(name=symbol, point=0.01, trade_tick_size=0.1) if self.symbol_result else None
 
     def copy_rates_from_pos(self, symbol, timeframe, start, bars):
         return [
@@ -118,10 +118,22 @@ def test_exported_csv_has_backtest_columns(tmp_path):
         "low",
         "close",
         "volume",
-        "spread",
+        "spread_points",
+        "point_size",
+        "tick_size",
+        "spread_price",
     ]
     assert exported.iloc[0]["volume"] == 120
-    assert exported.iloc[0]["spread"] == 18
+    assert exported.iloc[0]["spread_points"] == 18
+    assert exported.iloc[0]["spread_price"] == pytest.approx(0.18)
+
+
+def test_export_fails_closed_when_symbol_metadata_has_no_point_size(tmp_path):
+    gateway = FakeMT5()
+    gateway.symbol_info = lambda _symbol: SimpleNamespace(name="XAUUSD", trade_tick_size=0.1)
+
+    with pytest.raises(MT5HistoryError, match="point_size"):
+        export_mt5_history(gateway, symbol="XAUUSD", timeframe="M5", bars=1, output=tmp_path / "history.csv")
 
 
 def test_range_exported_csv_has_backtest_columns(tmp_path):
@@ -169,6 +181,7 @@ def test_paginated_export_sorts_pages_uses_closed_bar_and_writes_manifest(tmp_pa
         "1970-01-01 00:15:00+00:00",
     ]
     assert json.loads(manifest_path.read_text(encoding="utf-8"))["status"] == "complete"
+    assert json.loads(manifest_path.read_text(encoding="utf-8"))["price_unit_contract"]["point_size"] == 0.01
 
 
 def test_paginated_export_deduplicates_identical_rows_and_records_gaps(tmp_path):

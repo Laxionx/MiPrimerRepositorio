@@ -12,8 +12,8 @@ def run_mt5_backtest(
     bars: int,
     output: str | Path,
     logs_dir: str | Path,
-    default_spread: float = 0.0,
     slippage_points: float = 0.0,
+    slippage_price: float | None = None,
 ) -> dict[str, int | float | None]:
     csv_path = export_from_local_terminal(
         symbol=symbol,
@@ -25,7 +25,7 @@ def run_mt5_backtest(
         symbol=symbol,
         timeframe=timeframe,
         journal=PaperForwardJournal(logs_dir),
-        default_spread=default_spread,
         slippage_points=slippage_points,
+        slippage_price=slippage_price,
     )
     return runner.run(load_historical_csv(csv_path))

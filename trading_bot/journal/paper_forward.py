@@ -32,6 +32,12 @@ TRADE_FIELDS = (
 OPTIONAL_TRADE_FIELDS = (
     "extension_atr",
     "spread",
+    "spread_points",
+    "point_size",
+    "tick_size",
+    "spread_price",
+    "slippage_points",
+    "slippage_price",
     "volatility",
     "atr",
     "candle_range",
@@ -59,6 +65,12 @@ OPTIONAL_BLOCKED_SETUP_FIELDS = (
     "quality_block_reason",
     "extension_atr",
     "spread",
+    "spread_points",
+    "point_size",
+    "tick_size",
+    "spread_price",
+    "slippage_points",
+    "slippage_price",
     "entry_distance_from_sweep",
     "planned_rr",
     "volatility",
@@ -88,6 +100,7 @@ class PaperForwardJournal:
         self.trades_path = self.log_dir / "trades.jsonl"
         self.setups_path = self.log_dir / "setups.jsonl"
         self.blocked_setups_path = self.log_dir / "blocked_setups.jsonl"
+        self.post_cost_blocks_path = self.log_dir / "post_cost_blocks.jsonl"
         self.summary_path = self.log_dir / "daily_summary.json"
 
     def record_completed_trade(self, trade: dict[str, Any]) -> None:
@@ -150,6 +163,12 @@ class PaperForwardJournal:
                 self.blocked_setups_path,
                 payload,
             )
+
+    def record_post_cost_block(self, payload: dict[str, Any]) -> None:
+        """Record a runner-level block after effective-entry cost normalization."""
+        if payload.get("block_reason") != "invalid_post_cost_trade_geometry":
+            raise ValueError("post-cost block must use invalid_post_cost_trade_geometry")
+        self._append(self.post_cost_blocks_path, payload)
 
     def write_daily_summary(self, trading_date: str | None = None) -> dict[str, Any]:
         trading_date = trading_date or datetime.now(timezone.utc).date().isoformat()

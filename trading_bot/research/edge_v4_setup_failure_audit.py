@@ -27,7 +27,7 @@ from trading_bot.signals.liquidity_sweep import LiquiditySweepDetector
 
 
 REQUIRED_CANDLE_COLUMNS = {
-    "timestamp", "open", "high", "low", "close", "volume", "spread"
+    "timestamp", "open", "high", "low", "close", "volume"
 }
 EXCURSION_FIELDS = (
     "mfe",
@@ -56,7 +56,11 @@ def load_audit_candles(source: Path | list[dict[str, Any]]) -> pd.DataFrame:
         raise ValueError(f"missing_candle_columns: {', '.join(sorted(missing))}")
     candles = candles.copy()
     candles["time"] = pd.to_datetime(candles["timestamp"], utc=True, errors="raise")
-    numeric = ["open", "high", "low", "close", "volume", "spread"]
+    numeric = ["open", "high", "low", "close", "volume"]
+    numeric.extend(
+        column for column in ("spread_points", "spread_price", "point_size", "tick_size")
+        if column in candles.columns
+    )
     candles[numeric] = candles[numeric].apply(pd.to_numeric, errors="raise")
     candles["tick_volume"] = candles["volume"]
     if candles["time"].duplicated().any():
@@ -71,8 +75,31 @@ def build_detector_funnel(
     warmup_bars: int = 21,
 ) -> dict[str, int]:
     """Replay existing detector predicates without submitting or changing a setup."""
+    counters, _ = _detector_funnel_events(candles, detector=detector, warmup_bars=warmup_bars)
+    keys = (
+        "eligible_bars",
+        "high_sweep_observations",
+        "low_sweep_observations",
+        "high_sweeps_not_reclaimed",
+        "low_sweeps_not_reclaimed",
+        "high_reclaims_failing_vwap",
+        "low_reclaims_failing_vwap",
+        "generated_setups",
+        "generated_long_setups",
+        "generated_short_setups",
+    )
+    return {key: int(counters[key]) for key in keys}
+
+
+def _detector_funnel_events(
+    candles: pd.DataFrame,
+    *,
+    detector: LiquiditySweepDetector | None = None,
+    warmup_bars: int = 21,
+) -> tuple[Counter, list[str]]:
     active_detector = detector or LiquiditySweepDetector()
     counters = Counter()
+    candidate_timestamps = []
     for index in range(warmup_bars - 1, max(len(candles) - 1, 0)):
         history = candles.iloc[: index + 1]
         report = active_detector.detect_signals(history)
@@ -102,24 +129,13 @@ def build_detector_funnel(
         setup = report.get("setup")
         if setup:
             counters["generated_setups"] += 1
+            candidate_timestamps.append(current["time"].isoformat())
             counters[
                 "generated_long_setups"
                 if setup.get("type") == "LONG"
                 else "generated_short_setups"
             ] += 1
-    keys = (
-        "eligible_bars",
-        "high_sweep_observations",
-        "low_sweep_observations",
-        "high_sweeps_not_reclaimed",
-        "low_sweeps_not_reclaimed",
-        "high_reclaims_failing_vwap",
-        "low_reclaims_failing_vwap",
-        "generated_setups",
-        "generated_long_setups",
-        "generated_short_setups",
-    )
-    return {key: int(counters[key]) for key in keys}
+    return counters, candidate_timestamps
 
 
 def reconstruct_trade_excursion(
@@ -218,6 +234,7 @@ def run_setup_failure_audit(
         raise ValueError("no_paginated_history_manifests")
     runs = []
     all_excursions: list[dict[str, Any]] = []
+    canonical_ids: set[str] = set()
     for manifest_path in manifests:
         run_dir = manifest_path.parent
         manifest = _read_json(manifest_path)
@@ -228,6 +245,7 @@ def run_setup_failure_audit(
         trades = _read_jsonl(run_dir / "journal" / "trades.jsonl")
         setups = _read_jsonl(run_dir / "journal" / "setups.jsonl")
         blocked = _read_jsonl(run_dir / "journal" / "blocked_setups.jsonl")
+        post_cost_blocks = _read_jsonl(run_dir / "journal" / "post_cost_blocks.jsonl")
         excursions = [
             reconstruct_trade_excursion(trade, candles)
             if _trade_matches_run(trade, manifest)
@@ -235,6 +253,10 @@ def run_setup_failure_audit(
             for trade in trades
         ]
         all_excursions.extend(excursions)
+        for excursion in excursions:
+            if excursion["trade_id"] in canonical_ids:
+                raise ValueError(f"canonical_trade_id_collision: {excursion['trade_id']}")
+            canonical_ids.add(excursion["trade_id"])
         runs.append(
             {
                 "run_id": run_dir.name,
@@ -242,7 +264,7 @@ def run_setup_failure_audit(
                 "timeframe": manifest.get("timeframe"),
                 "candle_count": len(candles),
                 "trade_count": len(trades),
-                "funnel": _run_funnel(candles, setups, blocked, trades),
+                "funnel": _run_funnel(candles, setups, blocked, post_cost_blocks, trades),
                 "outcome_distribution": outcome_distribution(excursions),
                 "loss_streaks": loss_streaks(excursions),
                 "early_movement_by_bar": early_movement_by_bar(excursions),
@@ -255,7 +277,7 @@ def run_setup_failure_audit(
         excursion.pop("_favorable_path_r", None)
         excursion.pop("_adverse_path_r", None)
     report = {
-        "schema_version": "aqtf_edge_v4_setup_failure_audit.v1",
+        "schema_version": "aqtf_edge_v4_setup_failure_audit.v2",
         "metadata": {
             "diagnostic_only": True,
             "data_provider": "batch_artifacts",
@@ -302,6 +324,8 @@ def _excursion_base(trade: dict[str, Any]) -> dict[str, Any]:
         "reward_points", "pnl", "r_multiple", "outcome", "exit_reason", "bars_held",
     )
     base = {field: trade.get(field) for field in fields}
+    base["source_trade_id"] = base["trade_id"]
+    base["trade_id"] = canonical_trade_id(trade)
     base.update({field: None for field in EXCURSION_FIELDS})
     base["data_quality_status"] = "data_unavailable"
     base["data_quality_reason"] = None
@@ -348,26 +372,77 @@ def _trade_matches_run(trade: dict[str, Any], manifest: dict[str, Any]) -> bool:
     )
 
 
+def canonical_trade_id(trade: dict[str, Any]) -> str:
+    """Create an unambiguous identifier for new and legacy journal records."""
+    source = str(trade.get("trade_id", ""))
+    symbol = str(trade.get("symbol", ""))
+    timeframe = str(trade.get("timeframe", "")).upper()
+    timestamp = str(trade.get("timestamp_open", ""))
+    direction = str(trade.get("direction", ""))
+    if not all((symbol, timeframe, timestamp, direction)):
+        raise ValueError("trade identifier requires symbol, timeframe, timestamp_open, and direction")
+    prefix = f"{symbol}-{timeframe}-"
+    if source.startswith(prefix):
+        return source
+    return "legacy::" + "::".join((source, symbol, timeframe, timestamp, direction))
+
+
 def _run_funnel(
     candles: pd.DataFrame,
     setups: list[dict[str, Any]],
     blocked: list[dict[str, Any]],
+    post_cost_blocks: list[dict[str, Any]],
     trades: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    detector = build_detector_funnel(candles)
+    detector, candidate_timestamps = _detector_funnel_events(candles)
     exits = Counter(str(trade.get("exit_reason")) for trade in trades)
     reasons = Counter(str(item.get("block_reason")) for item in blocked)
+    setup_timestamps = Counter(str(item.get("timestamp")) for item in setups)
+    detector_timestamps = Counter(candidate_timestamps)
+    suppressed = list((detector_timestamps - setup_timestamps).elements())
+    journal_only = list((setup_timestamps - detector_timestamps).elements())
+    legacy_incomplete_journal = not setups and not blocked and not post_cost_blocks and bool(trades)
+    if journal_only:
+        raise ValueError("journal setup does not match detector candidate")
+    suppressed_active = _suppressed_while_position_open(suppressed, trades)
+    if not legacy_incomplete_journal and suppressed_active != len(suppressed):
+        raise ValueError("detector candidate missing without an active position")
+    accepted = sum(bool(item.get("accepted")) for item in setups)
+    if not legacy_incomplete_journal and len(setups) != len(blocked) + accepted:
+        raise ValueError("runner evaluable setup funnel does not reconcile")
+    if not legacy_incomplete_journal and accepted != len(post_cost_blocks) + len(trades):
+        raise ValueError("accepted setup funnel does not reconcile to post-cost blocks and opened trades")
     return {
-        **detector,
+        **{key: int(value) for key, value in detector.items()},
+        "detector_candidates_total": len(candidate_timestamps),
+        "candidates_suppressed_while_position_open": len(suppressed),
+        "runner_evaluable_setups": len(setups),
         "journal_setups_generated": len(setups),
         "journal_setups_blocked": len(blocked),
-        "journal_setups_accepted": sum(bool(item.get("accepted")) for item in setups),
+        "journal_setups_accepted": accepted,
+        "post_cost_geometry_blocks": len(post_cost_blocks),
+        "accepted_not_opened": 0 if legacy_incomplete_journal else accepted - len(trades),
+        "funnel_reconciliation_status": "legacy_incomplete_journal" if legacy_incomplete_journal else "complete",
         "blocked_by_reason": dict(sorted(reasons.items())),
         "trades_opened": len(trades),
         "trades_closed_stop_loss": exits["stop_loss"],
         "trades_closed_take_profit": exits["take_profit"],
         "trades_closed_end_of_data": exits["end_of_data"],
     }
+
+
+def _suppressed_while_position_open(candidate_timestamps: list[str], trades: list[dict[str, Any]]) -> int:
+    intervals = [
+        (
+            pd.to_datetime(trade["timestamp_open"], utc=True, errors="raise"),
+            pd.to_datetime(trade["timestamp_close"], utc=True, errors="raise"),
+        )
+        for trade in trades
+    ]
+    return sum(
+        any(opened <= pd.to_datetime(timestamp, utc=True, errors="raise") < closed for opened, closed in intervals)
+        for timestamp in candidate_timestamps
+    )
 
 
 def _aggregate_funnel(runs: list[dict[str, Any]]) -> dict[str, Any]:
