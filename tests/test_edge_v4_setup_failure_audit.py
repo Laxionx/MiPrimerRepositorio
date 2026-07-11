@@ -6,6 +6,7 @@ import json
 import pytest
 
 from trading_bot.research import edge_v4_setup_failure_audit
+from trading_bot.research.edge_v4_setup_failure_metrics import outcome_distribution
 from trading_bot.signals.liquidity_sweep import LiquiditySweepDetector
 
 
@@ -48,6 +49,18 @@ def _rows(*values):
         }
         for timestamp, high, low, close in values
     ]
+
+
+def _loss_trade():
+    trade = _trade()
+    trade.update(
+        exit_price=98.0,
+        pnl=-2.0,
+        r_multiple=-1.0,
+        outcome="loss",
+        exit_reason="stop_loss",
+    )
+    return trade
 
 
 def _write_run(tmp_path, rows, trades, *, manifest_status="complete", checksum=None):
@@ -222,8 +235,66 @@ def test_aggregated_json_is_deterministic_and_writes_requested_outputs(tmp_path)
     assert first["early_movement_by_bar"][0]["mean_cumulative_mfe_r"] == 0.5
 
 
+def test_outcome_distribution_marks_no_winners_without_throwing():
+    result = outcome_distribution([_loss_trade()])
+
+    assert result["mean_win"] is None
+    assert result["payoff_ratio"] is None
+    assert "no_winners" in result["payoff_ratio_flags"]
+
+
+def test_outcome_distribution_marks_no_losers_without_throwing():
+    result = outcome_distribution([_trade()])
+
+    assert result["mean_loss"] is None
+    assert result["payoff_ratio"] is None
+    assert "no_losers" in result["payoff_ratio_flags"]
+
+
+def test_outcome_distribution_marks_empty_segment_as_undefined():
+    result = outcome_distribution([])
+
+    assert result["expectancy_r"] is None
+    assert result["payoff_ratio"] is None
+    assert "empty_or_no_resolved_outcomes" in result["payoff_ratio_flags"]
+
+
+def test_outcome_distribution_preserves_payoff_for_resolved_segment():
+    result = outcome_distribution([_trade(), _loss_trade()])
+
+    assert result["mean_win"] == 4.0
+    assert result["mean_loss"] == 2.0
+    assert result["payoff_ratio"] == 2.0
+    assert result["payoff_ratio_flags"] == []
+
+
+def test_audit_writes_outputs_for_a_zero_winner_run(tmp_path):
+    rows = _rows(
+        ("2026-01-01T00:00:00Z", 101.0, 99.0, 100.0),
+        ("2026-01-01T00:05:00Z", 103.0, 97.0, 98.0),
+        ("2026-01-01T00:10:00Z", 103.0, 99.0, 100.0),
+    )
+    _write_run(tmp_path, rows, [_loss_trade()])
+    out = tmp_path / "audit.json"
+    detail = tmp_path / "detail.jsonl"
+
+    report = edge_v4_setup_failure_audit.run_setup_failure_audit(
+        tmp_path, out=out, detail_out=detail
+    )
+
+    assert report["runs"][0]["outcome_distribution"]["payoff_ratio"] is None
+    assert "no_winners" in report["outcome_distribution"]["payoff_ratio_flags"]
+    assert out.exists()
+    assert detail.exists()
+
+
 def test_module_has_no_execution_or_excluded_feature_path():
-    source = inspect.getsource(edge_v4_setup_failure_audit)
+    from trading_bot.research import edge_v4_setup_failure_metrics
+
+    source = (
+        inspect.getsource(edge_v4_setup_failure_audit)
+        + inspect.getsource(edge_v4_setup_failure_metrics)
+    )
 
     assert "order_send" not in source
     assert "lower_quartile_closes" not in source
