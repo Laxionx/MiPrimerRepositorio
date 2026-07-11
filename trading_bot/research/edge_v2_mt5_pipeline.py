@@ -45,9 +45,10 @@ def run_edge_v2_mt5_research(
             start=start,
             end=end,
             output=candles_path,
+            manifest_out=manifest_path,
             gateway=gateway,
         )
-        pagination_manifest_path = None
+        pagination_manifest_path = manifest_path
     elif history_mode == "paginated":
         export = export_paginated_from_local_terminal(
             symbol=symbol,

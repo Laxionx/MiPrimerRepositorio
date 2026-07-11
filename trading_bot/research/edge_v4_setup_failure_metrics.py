@@ -8,32 +8,43 @@ from typing import Any
 
 
 def outcome_distribution(records: list[dict[str, Any]]) -> dict[str, Any]:
-    outcomes = Counter(str(record.get("outcome")) for record in records)
     values = [float(record["r_multiple"]) for record in records if record.get("r_multiple") is not None]
-    winners = [float(record["pnl"]) for record in records if float(record.get("pnl", 0)) > 0]
-    losers = [abs(float(record["pnl"])) for record in records if float(record.get("pnl", 0)) < 0]
-    mean_win = mean(winners)
-    mean_loss = mean(losers)
+    winners = [value for value in values if value > 0]
+    losers = [abs(value) for value in values if value < 0]
+    breakeven = [value for value in values if value == 0]
+    mean_win_r = mean(winners)
+    mean_loss_r = mean(losers)
+    win_rate = len(winners) / len(values) if values else None
+    loss_rate = len(losers) / len(values) if values else None
     payoff_ratio_flags = []
-    if mean_win is None:
+    if mean_win_r is None:
         payoff_ratio_flags.append("no_winners")
-    if mean_loss is None:
+    if mean_loss_r is None:
         payoff_ratio_flags.append("no_losers")
-    if mean_win is None and mean_loss is None:
+    if mean_win_r is None and mean_loss_r is None:
         payoff_ratio_flags.append("empty_or_no_resolved_outcomes")
+    weighted_expectancy_r = (
+        win_rate * mean_win_r - loss_rate * mean_loss_r
+        if win_rate is not None and loss_rate is not None and mean_win_r is not None and mean_loss_r is not None
+        else None
+    )
     return {
         "total_trades": len(records),
-        "wins": outcomes["win"],
-        "losses": outcomes["loss"],
-        "breakeven": outcomes["breakeven"],
+        "wins": len(winners),
+        "losses": len(losers),
+        "breakeven": len(breakeven),
         "r_distribution": summary(values),
         "expectancy_r": mean(values),
-        "mean_win": mean_win,
-        "mean_loss": mean_loss,
-        "payoff_ratio": mean_win / mean_loss if mean_win is not None and mean_loss is not None else None,
+        "weighted_expectancy_r": weighted_expectancy_r,
+        "mean_win_r": mean_win_r,
+        "mean_loss_r": mean_loss_r,
+        "payoff_ratio_r": mean_win_r / mean_loss_r if mean_win_r is not None and mean_loss_r is not None else None,
+        "win_rate": win_rate,
+        "loss_rate": loss_rate,
         "payoff_ratio_flags": payoff_ratio_flags,
         "payoff_ratio_reason": "; ".join(payoff_ratio_flags) or None,
         "win_loss_ratio": len(winners) / len(losers) if losers else None,
+        "metric_units": "R",
         "bars_held_distribution": summary(
             [float(record["bars_held"]) for record in records if record.get("bars_held") is not None]
         ),

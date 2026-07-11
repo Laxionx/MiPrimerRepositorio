@@ -21,7 +21,10 @@ def historical_candles() -> pd.DataFrame:
             "low": [close - 0.5 for close in closes],
             "close": closes,
             "volume": [100] * len(timestamps),
-            "spread": [1.0] * len(timestamps),
+            "spread_points": [1.0] * len(timestamps),
+            "point_size": [0.01] * len(timestamps),
+            "tick_size": [0.1] * len(timestamps),
+            "spread_price": [0.01] * len(timestamps),
         }
     )
 
@@ -88,7 +91,7 @@ def test_pipeline_selects_paginated_export_and_creates_no_journal_on_failure(tmp
     def paginated_export(**kwargs):
         calls.append(kwargs)
         historical_candles().to_csv(kwargs["output"], index=False)
-        kwargs["manifest_out"].write_text('{"status":"complete"}', encoding="utf-8")
+        kwargs["manifest_out"].write_text('{"status":"complete","price_unit_contract":{"point_size":0.01,"tick_size":0.1}}', encoding="utf-8")
         return SimpleNamespace(csv_path=kwargs["output"], manifest_path=kwargs["manifest_out"])
 
     monkeypatch.setattr(edge_v2_mt5_pipeline, "export_paginated_from_local_terminal", paginated_export)

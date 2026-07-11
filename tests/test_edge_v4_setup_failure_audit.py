@@ -3,6 +3,8 @@ import hashlib
 import inspect
 import json
 
+from collections import Counter
+
 import pytest
 
 from trading_bot.research import edge_v4_setup_failure_audit
@@ -238,16 +240,16 @@ def test_aggregated_json_is_deterministic_and_writes_requested_outputs(tmp_path)
 def test_outcome_distribution_marks_no_winners_without_throwing():
     result = outcome_distribution([_loss_trade()])
 
-    assert result["mean_win"] is None
-    assert result["payoff_ratio"] is None
+    assert result["mean_win_r"] is None
+    assert result["payoff_ratio_r"] is None
     assert "no_winners" in result["payoff_ratio_flags"]
 
 
 def test_outcome_distribution_marks_no_losers_without_throwing():
     result = outcome_distribution([_trade()])
 
-    assert result["mean_loss"] is None
-    assert result["payoff_ratio"] is None
+    assert result["mean_loss_r"] is None
+    assert result["payoff_ratio_r"] is None
     assert "no_losers" in result["payoff_ratio_flags"]
 
 
@@ -255,17 +257,32 @@ def test_outcome_distribution_marks_empty_segment_as_undefined():
     result = outcome_distribution([])
 
     assert result["expectancy_r"] is None
-    assert result["payoff_ratio"] is None
+    assert result["payoff_ratio_r"] is None
     assert "empty_or_no_resolved_outcomes" in result["payoff_ratio_flags"]
 
 
 def test_outcome_distribution_preserves_payoff_for_resolved_segment():
     result = outcome_distribution([_trade(), _loss_trade()])
 
-    assert result["mean_win"] == 4.0
-    assert result["mean_loss"] == 2.0
-    assert result["payoff_ratio"] == 2.0
+    assert result["mean_win_r"] == 2.0
+    assert result["mean_loss_r"] == 1.0
+    assert result["payoff_ratio_r"] == 2.0
+    assert result["expectancy_r"] == result["weighted_expectancy_r"]
     assert result["payoff_ratio_flags"] == []
+
+
+def test_outcome_distribution_uses_r_not_cross_instrument_price_pnl():
+    eur = _trade()
+    eur.update(symbol="EURUSD", pnl=0.0004, r_multiple=2.0)
+    xau = _loss_trade()
+    xau.update(symbol="XAUUSD", pnl=-50.0, r_multiple=-1.0)
+
+    result = outcome_distribution([eur, xau])
+
+    assert result["mean_win_r"] == 2.0
+    assert result["mean_loss_r"] == 1.0
+    assert result["payoff_ratio_r"] == 2.0
+    assert "mean_win" not in result and "payoff_ratio" not in result
 
 
 def test_audit_writes_outputs_for_a_zero_winner_run(tmp_path):
@@ -282,10 +299,42 @@ def test_audit_writes_outputs_for_a_zero_winner_run(tmp_path):
         tmp_path, out=out, detail_out=detail
     )
 
-    assert report["runs"][0]["outcome_distribution"]["payoff_ratio"] is None
+    assert report["runs"][0]["outcome_distribution"]["payoff_ratio_r"] is None
     assert "no_winners" in report["outcome_distribution"]["payoff_ratio_flags"]
     assert out.exists()
     assert detail.exists()
+
+
+def test_funnel_explicitly_accounts_for_candidates_suppressed_while_open(monkeypatch):
+    candles = edge_v4_setup_failure_audit.load_audit_candles(
+        _rows(
+            ("2026-01-01T00:00:00Z", 101.0, 99.0, 100.0),
+            ("2026-01-01T00:05:00Z", 101.0, 99.0, 100.0),
+            ("2026-01-01T00:10:00Z", 101.0, 99.0, 100.0),
+        )
+    )
+    monkeypatch.setattr(
+        edge_v4_setup_failure_audit,
+        "_detector_funnel_events",
+        lambda *_args, **_kwargs: (Counter({"generated_setups": 2}), ["2026-01-01T00:05:00+00:00", "2026-01-01T00:10:00+00:00"]),
+    )
+    trade = _trade(opened="2026-01-01T00:00:00+00:00", closed="2026-01-01T00:10:00+00:00")
+    setup = {"timestamp": "2026-01-01T00:10:00+00:00", "accepted": True}
+
+    funnel = edge_v4_setup_failure_audit._run_funnel(candles, [setup], [], [], [trade])
+
+    assert funnel["detector_candidates_total"] == 2
+    assert funnel["candidates_suppressed_while_position_open"] == 1
+    assert funnel["runner_evaluable_setups"] == funnel["journal_setups_blocked"] + funnel["journal_setups_accepted"]
+    assert funnel["journal_setups_accepted"] == funnel["post_cost_geometry_blocks"] + funnel["trades_opened"]
+
+
+def test_canonical_trade_id_makes_legacy_timeframes_distinct():
+    m5 = _trade(opened="2026-01-01T00:00:00Z")
+    m15 = _trade(opened="2026-01-01T00:00:00Z")
+    m15["timeframe"] = "M15"
+
+    assert edge_v4_setup_failure_audit.canonical_trade_id(m5) != edge_v4_setup_failure_audit.canonical_trade_id(m15)
 
 
 def test_module_has_no_execution_or_excluded_feature_path():

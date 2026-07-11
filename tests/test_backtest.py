@@ -81,7 +81,7 @@ def candles() -> pd.DataFrame:
     )
 
 
-def runner(tmp_path, *, spread=0.0, entry_scorer=None, detector=None):
+def runner(tmp_path, *, slippage_price=0.0, entry_scorer=None, detector=None):
     return BacktestRunner(
         symbol="XAUUSD",
         timeframe="M5",
@@ -89,7 +89,7 @@ def runner(tmp_path, *, spread=0.0, entry_scorer=None, detector=None):
         signal_detector=detector or OneLongSignal(),
         context_engine=AcceptedContext(),
         entry_scorer=entry_scorer or AcceptedEntry(),
-        default_spread=spread,
+        slippage_price=slippage_price,
         warmup_bars=1,
     )
 
@@ -178,8 +178,8 @@ def test_same_candle_stop_and_target_uses_stop_first(tmp_path):
     assert trade["exit_reason"] == "stop_loss"
 
 
-def test_missing_spread_uses_configured_default(tmp_path):
-    runner(tmp_path, spread=0.2).run(candles())
+def test_explicit_price_slippage_is_applied_without_ambiguous_default_spread(tmp_path):
+    runner(tmp_path, slippage_price=0.2).run(candles())
 
     trade = read_jsonl(tmp_path / "trades.jsonl")[0]
     assert trade["entry"] == 10.2
