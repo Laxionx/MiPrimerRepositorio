@@ -124,6 +124,20 @@ def test_matrix_fails_closed_for_numeric_field_without_provenance():
         raise AssertionError("strict matrix accepted a numeric field without provenance")
 
 
+def test_matrix_rejects_post_trade_excursion_fields_without_provenance():
+    records = _matrix_records(2)
+    for record in records:
+        record["mfe"] = 1.0
+        record["mae"] = -1.0
+
+    try:
+        matrix.build_matrix_from_records(records, provenance=_provenance())
+    except ValueError as exc:
+        assert "mae" in str(exc)
+    else:
+        raise AssertionError("strict matrix accepted post-trade MFE/MAE fields")
+
+
 def test_matrix_fails_closed_for_predecision_timing_contradiction():
     provenance = _provenance()
     provenance["atr"] = {
