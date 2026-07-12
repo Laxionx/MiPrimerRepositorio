@@ -42,6 +42,24 @@ DERIVED_SOURCES = {
     "risk_points_over_atr": ("risk_points", "atr"),
     "reward_points_over_atr": ("reward_points", "atr"),
 }
+STRICT_PROVENANCE_REQUIRED_KEYS = (
+    "field_name", "availability_timing", "source_basis", "leakage_risk",
+    "source_module_or_function", "depends_on_fields", "source_timestamp",
+    "strategy_decision_timestamp", "entry_timestamp", "uses_setup_bar",
+    "uses_next_entry_bar", "uses_spread_or_slippage", "uses_spread",
+    "uses_slippage", "uses_post_entry_information",
+    "strict_discovery_eligible", "exclusion_reason",
+)
+STRICT_PROVENANCE_BOOLEAN_KEYS = (
+    "uses_setup_bar", "uses_next_entry_bar", "uses_spread_or_slippage",
+    "uses_spread", "uses_slippage", "uses_post_entry_information",
+    "strict_discovery_eligible",
+)
+STRICT_PROVENANCE_STRING_KEYS = (
+    "field_name", "availability_timing", "source_basis", "leakage_risk",
+    "source_module_or_function", "source_timestamp",
+    "strategy_decision_timestamp", "entry_timestamp",
+)
 
 
 def discover_batch_journals(batch_dirs: list[str | Path]) -> list[Path]:
@@ -185,16 +203,52 @@ def _is_strict(entry: dict[str, Any]) -> bool:
     return is_verified_pretrade_low(entry)
 
 
-def _require_declared_provenance(field: str, entry: dict[str, Any]) -> None:
-    required = (
-        "field_name", "availability_timing", "source_basis", "leakage_risk",
-        "source_timestamp", "strategy_decision_timestamp", "entry_timestamp",
-        "uses_setup_bar", "uses_next_entry_bar", "uses_spread_or_slippage",
-        "uses_post_entry_information",
-    )
-    missing = [key for key in required if key not in entry]
-    if missing or entry.get("source_basis") == "unknown" or entry.get("availability_timing") == "unknown":
+def _require_declared_provenance(field: str, entry: Any) -> None:
+    if not isinstance(entry, dict):
+        raise ValueError(
+            f"Feature '{field}' has invalid strict provenance metadata; expected object"
+        )
+    missing = sorted(key for key in STRICT_PROVENANCE_REQUIRED_KEYS if key not in entry)
+    if missing:
+        raise ValueError(
+            f"Feature '{field}' has incomplete strict provenance metadata; "
+            f"missing required keys: {', '.join(missing)}"
+        )
+    for key in STRICT_PROVENANCE_STRING_KEYS:
+        if not isinstance(entry[key], str) or not entry[key]:
+            raise ValueError(
+                f"Feature '{field}' has invalid strict provenance field '{key}'; "
+                f"expected non-empty string, got {entry[key]!r} ({type(entry[key]).__name__})"
+            )
+    if not isinstance(entry["depends_on_fields"], list) or not all(
+        isinstance(value, str) for value in entry["depends_on_fields"]
+    ):
+        raise ValueError(
+            f"Feature '{field}' has invalid strict provenance field 'depends_on_fields'; "
+            "expected list of strings"
+        )
+    if entry["exclusion_reason"] is not None and not isinstance(
+        entry["exclusion_reason"], str
+    ):
+        raise ValueError(
+            f"Feature '{field}' has invalid strict provenance field 'exclusion_reason'; "
+            "expected string or None"
+        )
+    for key in STRICT_PROVENANCE_BOOLEAN_KEYS:
+        if type(entry[key]) is not bool:
+            raise ValueError(
+                f"Feature '{field}' has invalid strict provenance field '{key}'; "
+                f"expected boolean, got {entry[key]!r} ({type(entry[key]).__name__})"
+            )
+    if entry["source_basis"] == "unknown" or entry["availability_timing"] == "unknown":
         raise ValueError(f"strict discovery requires explicit provenance for {field}")
+    if entry["availability_timing"] not in {
+        "pre_decision", "at_entry", "post_entry", "post_trade",
+    }:
+        raise ValueError(
+            f"Feature '{field}' has invalid strict provenance timing "
+            f"'{entry['availability_timing']}'"
+        )
     if entry["availability_timing"] == "pre_decision" and any(
         entry[key]
         for key in (
@@ -203,6 +257,10 @@ def _require_declared_provenance(field: str, entry: dict[str, Any]) -> None:
         )
     ):
         raise ValueError(f"strict discovery timing contradiction for {field}")
+    if entry["strict_discovery_eligible"] != _is_strict(entry):
+        raise ValueError(
+            f"Feature '{field}' has inconsistent strict_discovery_eligible metadata"
+        )
 
 
 def _excluded(field: str, entry: dict[str, Any], reason: str) -> dict[str, Any]:
