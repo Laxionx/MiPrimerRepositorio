@@ -37,12 +37,12 @@ def _config(tmp_path: Path) -> Path:
     return path
 
 
-def test_valid_prepared_activation_package_is_inactive_and_deterministic():
+def test_active_activation_package_is_deterministic():
     result = vrt_activation.validate_activation_package(ROOT)
 
-    assert result["status"] == "prepared_not_activated"
+    assert result["status"] == "active_prospective"
     assert result["activation_record_sha256"] == vrt_activation.canonical_json_sha256(_json(RECORD))
-    assert result["prospective_activation_at_utc"] is None
+    assert result["prospective_activation_at_utc"] == "2026-07-12T23:28:01Z"
 
 
 def test_missing_manifest_fails_closed(tmp_path):
@@ -131,7 +131,7 @@ def test_prepared_record_allows_null_prospective_timestamp_but_rejects_activatio
     record["prospective_activation_at_utc"] = "2026-07-12T00:00:00Z"
     _write_json(record_path, record)
 
-    with pytest.raises(vrt_activation.ActivationConformanceError, match="prospective activation"):
+    with pytest.raises(vrt_activation.ActivationConformanceError, match="activation timestamp"):
         vrt_activation.validate_activation_package(ROOT, activation_record_path=record_path)
 
 

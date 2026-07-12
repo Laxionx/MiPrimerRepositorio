@@ -16,6 +16,8 @@ IMPLEMENTATION_MERGE_COMMIT = "807f79208c50043a8847f6d33f90e0c88076492d"
 REVIEWED_IMPLEMENTATION_HEAD = "e068ec01b52a21c92cb349189e0c0135c364453f"
 ACTIVATION_RECORD_CREATION_COMMIT = "91342b3a6b5957ad6f5d041c4b466ac866f00400"
 ACTIVATION_RECORD_CREATION_UTC = "2026-07-12T22:59:37Z"
+ACTIVATION_EXECUTION_COMMIT = "aad92d3a20c07e955cd69aa9bacc8d1e9784365d"
+ACTIVATION_EXECUTION_COMMIT_UTC = "2026-07-12T23:27:35Z"
 FAMILY_ID = "volatility-regime-transition-vrt-20260712-v1"
 PACKAGE_RELATIVE = Path("docs/research_preregistrations/next_family_selection_2026-07-12")
 MANIFEST_NAME = "preregistration_manifest.json"
@@ -182,13 +184,23 @@ def validate_activation_package(
     _expect(record.get("symbols_timeframes"), manifest.get("universe"), "activation symbols/timeframes")
     _expect(record.get("fixed_periods"), manifest.get("periods"), "activation temporal split")
     status = record.get("status")
-    if status not in {"prepared_not_activated", "activation_requirements_complete"}:
+    if status not in {"prepared_not_activated", "activation_requirements_complete", "active_prospective"}:
         raise ActivationConformanceError("activation status mismatch")
     for flag in EXECUTION_FLAGS:
         _expect(record.get(flag), False, flag)
     _utc(record.get("prepared_at_utc"), "prepared timestamp")
     prospective = record.get("prospective_activation_at_utc")
     if prospective is not None:
+        if status == "active_prospective":
+            _expect(record.get("activation_commit"), ACTIVATION_EXECUTION_COMMIT, "activation commit")
+            _expect(record.get("activation_committed_at_utc"), ACTIVATION_EXECUTION_COMMIT_UTC, "activation commit timestamp")
+            if _utc(prospective, "activation timestamp") <= _utc(record["activation_committed_at_utc"], "activation commit timestamp"):
+                raise ActivationConformanceError("activation timestamp must follow activation commit")
+            return {
+                "status": status, "prospective_activation_at_utc": prospective,
+                "activation_record_sha256": canonical_json_sha256(record),
+                "manifest_sha256": implementation_conformance["manifest_sha256"],
+            }
         if status != "activation_requirements_complete":
             raise ActivationConformanceError("prospective activation is not permitted for a prepared record")
         committed = _utc(record.get("committed_at_utc"), "committed timestamp")
