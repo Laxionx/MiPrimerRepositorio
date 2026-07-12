@@ -42,9 +42,12 @@ preregistration has been reviewed and merged; even then, its first execution rem
 subject to the preregistration's separate implementation and prospective-validation
 gates.
 
-Volatility Regime Transition is selected but not yet active. No detector has been
-implemented, no implementation has been validated, and no prospective activation UTC
-timestamp exists. No MT5 or real-data execution has occurred. Implementation cannot
-begin until PR #28 is merged; real-data execution cannot begin until a separate
-implementation PR and a complete activation record are reviewed and frozen. Liquidity
-Sweep remains formally closed; no edge and no profitable strategy are confirmed.
+Volatility Regime Transition is selected, implemented, and still inactive. The
+preregistration merge is `c635df3000c04c016801557e3427fb2e01a847c5`; the canonical
+implementation merge is `807f79208c50043a8847f6d33f90e0c88076492d`; and the reviewed
+implementation head is `e068ec01b52a21c92cb349189e0c0135c364453f`. A prepared,
+machine-readable activation package freezes the future execution boundary, but its
+prospective activation UTC timestamp remains null. Merging that package does not start
+prospective validation. No MT5 or real-data execution, backtest, performance inspection,
+or order API call has occurred. Liquidity Sweep remains formally closed; no edge and no
+profitable strategy are confirmed.

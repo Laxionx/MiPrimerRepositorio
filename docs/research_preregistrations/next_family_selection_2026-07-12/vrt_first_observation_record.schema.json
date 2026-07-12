@@ -1,0 +1,9 @@
+{
+  "schema_version": "vrt_first_observation_record.v1",
+  "status": "template_not_observed",
+  "required_fields": ["family_id", "family_version", "activation_record_sha256", "activation_record_commit", "prospective_activation_at_utc", "input_data_artifact_hashes", "execution_command", "execution_configuration_sha256", "implementation_commit", "preregistration_commit", "provenance_sha256", "output_directory", "expected_report_schemas", "observation_started_at_utc", "observation_completed_at_utc", "immutable_run_id", "results_not_inspected_before_record_written"],
+  "record_template": {"family_id": null, "family_version": null, "activation_record_sha256": null, "activation_record_commit": null, "prospective_activation_at_utc": null, "input_data_artifact_hashes": null, "execution_command": null, "execution_configuration_sha256": null, "implementation_commit": null, "preregistration_commit": null, "provenance_sha256": null, "output_directory": null, "expected_report_schemas": null, "observation_started_at_utc": null, "observation_completed_at_utc": null, "immutable_run_id": null, "results_not_inspected_before_record_written": null},
+  "observation_permitted_by_this_template": false,
+  "real_data_observed": false,
+  "performance_inspected": false
+}
