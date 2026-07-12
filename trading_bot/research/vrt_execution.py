@@ -7,7 +7,7 @@ import json
 import math
 import uuid
 from collections import Counter, defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -30,6 +30,10 @@ def _timestamp(value: Any) -> datetime:
     if isinstance(value, datetime):
         return value.astimezone(UTC)
     return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
+
+
+def _duration(timeframe: str) -> int:
+    return {"M5": 300, "M15": 900, "H1": 3600}[timeframe]
 
 
 def _tr(history: Sequence[Mapping[str, Any]]) -> list[float]:
@@ -117,7 +121,7 @@ def _trade(event: Mapping[str, Any], rows: Sequence[Mapping[str, Any]], features
         "exit_timestamp_utc": _timestamp(exit_bar["timestamp_utc"]).isoformat().replace("+00:00", "Z"),
         "effective_entry": entry, "effective_exit": effective_exit, "spread_price": spread, "slippage_price": slip,
         "risk_price": risk, "stop": stop, "target": target, "pnl": pnl, "r_multiple": pnl / risk,
-        "bars_held": int((_timestamp(exit_bar["timestamp_utc"]) - _timestamp(entry_bar["timestamp_utc"])).total_seconds() // 300) + 1,
+        "bars_held": int((_timestamp(exit_bar["timestamp_utc"]) - _timestamp(entry_bar["timestamp_utc"])).total_seconds() // _duration(str(event["timeframe"]))) + 1,
     }
 
 
@@ -148,16 +152,21 @@ def execute_frozen_vrt(
     features, trades, active_until = [], [], {}
     for event in generated["events"]:
         stream = (event["symbol"], event["timeframe"])
-        source_index = int(event["source_index"])
+        decision = _timestamp(event["decision_timestamp_utc"])
+        source_index = next((index for index, row in enumerate(streams[stream]) if _timestamp(row["timestamp_utc"]) + timedelta(seconds=_duration(event["timeframe"])) == decision), None)
+        if source_index is None:
+            trades.append({**event, "terminal_category": "invalid_input"})
+            continue
+        local_event = {**event, "source_index": source_index}
         if source_index <= active_until.get(stream, -1) and event["terminal_category"] == "raw":
-            trades.append({**event, "terminal_category": "suppressed_overlap"})
+            trades.append({**local_event, "terminal_category": "suppressed_overlap"})
             continue
         row_features = _feature_row(streams[stream][:source_index + 1])
         if row_features is None:
-            trades.append({**event, "terminal_category": "invalid_input"})
+            trades.append({**local_event, "terminal_category": "invalid_input"})
             continue
         features.append({"event_id": event["event_id"], **row_features})
-        result = _trade(event, streams[stream], row_features)
+        result = _trade(local_event, streams[stream], row_features)
         trades.append(result)
         if result["terminal_category"] in {"tp", "sl", "time_exit_48"}:
             active_until[stream] = source_index + int(result["bars_held"])
