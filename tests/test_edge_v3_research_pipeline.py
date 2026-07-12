@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from trading_bot.research import edge_v3_full_pretrade_discriminator_discovery as discovery
 from trading_bot.research import edge_v3_pretrade_feature_matrix as matrix
 from trading_bot.research import edge_v3_robustness_scorecard as scorecard
@@ -64,6 +66,23 @@ def _matrix_records(count=80):
     ]
 
 
+def _synthetic_provenance(name, dependencies, **overrides):
+    return {
+        **_provenance()["atr"],
+        "field_name": name,
+        "source_module_or_function": "test fixture",
+        "depends_on_fields": list(dependencies),
+        **overrides,
+    }
+
+
+def _records_with_features(*features):
+    records = _matrix_records(2)
+    for record in records:
+        record.update({feature: 1.0 for feature in features})
+    return records
+
+
 def test_matrix_deduplicates_rejects_invalid_and_excludes_lqc_and_outcomes(tmp_path):
     batch = tmp_path / "batch"
     rows = _matrix_records(8)
@@ -91,10 +110,280 @@ def test_matrix_adds_only_strict_deterministic_derivatives(tmp_path):
 
     result = matrix.build_pretrade_feature_matrix([batch], provenance=_provenance())
 
-    assert "reward_to_risk_planned" in result["predictors"]
-    assert "risk_points_over_atr" in result["predictors"]
+    assert "reward_to_risk_planned" not in result["predictors"]
+    assert "risk_points_over_atr" not in result["predictors"]
     assert "risk_points_over_candle_range" not in result["predictors"]
-    assert result["records"][0]["predictors"]["reward_to_risk_planned"] == 4
+    assert result["strict_excluded_features"]["risk_points"]["availability_timing"] == "at_entry"
+
+
+def test_matrix_contains_exactly_ten_predecision_predictors(tmp_path):
+    batch = tmp_path / "batch"
+    _write_journal(batch / "run" / "journal" / "trades.jsonl", [_trade(1, 2)])
+
+    result = matrix.build_pretrade_feature_matrix([batch], provenance=_provenance())
+
+    assert result["predictors"] == [
+        "atr", "atr_contraction_pct", "average_pullback_depth", "compression_score",
+        "pressure_score", "price_position_in_range", "prior_range_points",
+        "range_duration_bars", "recent_range_points", "upper_quartile_closes",
+    ]
+    assert not {"risk_points", "reward_points", "reward_to_risk_planned", "risk_points_over_atr", "reward_points_over_atr", "risk_points_over_prior_range_points", "reward_points_over_prior_range_points"} & set(result["predictors"])
+
+
+def test_matrix_fails_closed_for_numeric_field_without_provenance():
+    records = _matrix_records(2)
+    for record in records:
+        record["unregistered_numeric"] = 1.0
+
+    try:
+        matrix.build_matrix_from_records(records, provenance=_provenance())
+    except ValueError as exc:
+        assert "unregistered_numeric" in str(exc)
+    else:
+        raise AssertionError("strict matrix accepted a numeric field without provenance")
+
+
+def test_matrix_rejects_post_trade_excursion_fields_without_provenance():
+    records = _matrix_records(2)
+    for record in records:
+        record["mfe"] = 1.0
+        record["mae"] = -1.0
+
+    try:
+        matrix.build_matrix_from_records(records, provenance=_provenance())
+    except ValueError as exc:
+        assert "mae" in str(exc)
+    else:
+        raise AssertionError("strict matrix accepted post-trade MFE/MAE fields")
+
+
+def test_matrix_fails_closed_for_predecision_timing_contradiction():
+    provenance = _provenance()
+    provenance["atr"] = {
+        **provenance["atr"],
+        "uses_next_entry_bar": True,
+    }
+
+    try:
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+    except ValueError as exc:
+        assert "timing contradiction" in str(exc)
+    else:
+        raise AssertionError("strict matrix accepted contradictory pre-decision provenance")
+
+
+def test_matrix_fails_closed_for_predecision_spread_dependency():
+    provenance = _provenance()
+    provenance["atr"] = {
+        **provenance["atr"],
+        "uses_spread": True,
+        "uses_spread_or_slippage": False,
+    }
+
+    try:
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+    except ValueError as exc:
+        assert "timing contradiction" in str(exc)
+    else:
+        raise AssertionError("strict matrix accepted a spread-dependent pre-decision field")
+
+
+@pytest.mark.parametrize(
+    ("missing", "expected"),
+    [
+        (("uses_spread",), "uses_spread"),
+        (("uses_slippage",), "uses_slippage"),
+        (("uses_spread", "uses_slippage"), "uses_slippage, uses_spread"),
+        (("source_timestamp",), "source_timestamp"),
+    ],
+)
+def test_matrix_reports_all_missing_strict_provenance_keys(missing, expected):
+    provenance = _provenance()
+    for key in missing:
+        provenance["atr"].pop(key)
+
+    with pytest.raises(
+        ValueError,
+        match=rf"Feature 'atr' has incomplete strict provenance metadata; missing required keys: {expected}",
+    ):
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+
+
+def test_matrix_rejects_non_mapping_strict_provenance():
+    provenance = _provenance()
+    provenance["atr"] = "invalid"
+
+    with pytest.raises(ValueError, match=r"Feature 'atr' has invalid strict provenance metadata"):
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("uses_spread", "false"), ("uses_slippage", 0)],
+)
+def test_matrix_rejects_non_boolean_strict_cost_metadata(field, value):
+    provenance = _provenance()
+    provenance["atr"] = {**provenance["atr"], field: value}
+
+    with pytest.raises(ValueError, match=rf"Feature 'atr' has invalid strict provenance field '{field}'.*expected boolean"):
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+
+
+@pytest.mark.parametrize("field", ("uses_spread", "uses_slippage"))
+def test_matrix_reports_predecision_cost_contradictions(field):
+    provenance = _provenance()
+    provenance["atr"] = {
+        **provenance["atr"],
+        field: True,
+        "uses_spread_or_slippage": False,
+    }
+
+    with pytest.raises(ValueError, match=r"strict discovery timing contradiction for atr"):
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+
+
+@pytest.mark.parametrize(
+    ("dependency", "timing"),
+    [
+        ("risk_points", "at_entry"),
+        ("pnl", "post_trade"),
+        ("feature_post_entry", "post_entry"),
+    ],
+)
+def test_matrix_rejects_later_direct_provenance_dependencies(dependency, timing):
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", [dependency])
+    if dependency == "feature_post_entry":
+        provenance[dependency] = _synthetic_provenance(
+            dependency,
+            [],
+            availability_timing="post_entry",
+            strict_discovery_eligible=False,
+            uses_post_entry_information=True,
+        )
+
+    with pytest.raises(
+        ValueError,
+        match=rf"Feature 'feature_a'.*feature_a -> {dependency}.*'{timing}'",
+    ):
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a", dependency), provenance=provenance
+        )
+
+
+def test_matrix_rejects_transitive_later_provenance_dependency():
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", ["feature_b"])
+    provenance["feature_b"] = _synthetic_provenance("feature_b", ["risk_points"])
+
+    with pytest.raises(
+        ValueError,
+        match=r"Feature 'feature_a'.*feature_a -> feature_b -> risk_points.*'at_entry'",
+    ):
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a", "feature_b"), provenance=provenance
+        )
+
+
+def test_matrix_rejects_missing_and_unknown_provenance_dependencies():
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", ["missing_dependency"])
+
+    with pytest.raises(
+        ValueError,
+        match=r"Feature 'feature_a'.*feature_a -> missing_dependency.*unregistered",
+    ):
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a"), provenance=provenance
+        )
+
+
+def test_matrix_rejects_unknown_timing_and_ineligible_dependencies():
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", ["feature_b"])
+    provenance["feature_b"] = _synthetic_provenance(
+        "feature_b", [], availability_timing="unknown", strict_discovery_eligible=False
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"Feature 'feature_a'.*feature_a -> feature_b.*unknown",
+    ):
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a", "feature_b"), provenance=provenance
+        )
+
+    provenance["feature_b"] = _synthetic_provenance(
+        "feature_b", [], strict_discovery_eligible=False
+    )
+    with pytest.raises(
+        ValueError,
+        match=r"Feature 'feature_a'.*feature_a -> feature_b.*strict_discovery_eligible",
+    ):
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a", "feature_b"), provenance=provenance
+        )
+
+
+@pytest.mark.parametrize(
+    ("dependencies", "expected_cycle"),
+    [
+        ({"feature_a": ["feature_a"]}, "feature_a -> feature_a"),
+        (
+            {"feature_a": ["feature_b"], "feature_b": ["feature_a"]},
+            "feature_a -> feature_b -> feature_a",
+        ),
+    ],
+)
+def test_matrix_rejects_provenance_dependency_cycles(dependencies, expected_cycle):
+    provenance = _provenance()
+    for field, source_fields in dependencies.items():
+        provenance[field] = _synthetic_provenance(field, source_fields)
+
+    with pytest.raises(ValueError, match=rf"strict provenance dependency cycle: {expected_cycle}"):
+        matrix.build_matrix_from_records(
+            _records_with_features(*dependencies), provenance=provenance
+        )
+
+
+def test_matrix_accepts_complete_predecision_dependency_chain():
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", ["feature_b"])
+    provenance["feature_b"] = _synthetic_provenance("feature_b", [])
+
+    result = matrix.build_matrix_from_records(
+        _records_with_features("feature_a", "feature_b"), provenance=provenance
+    )
+
+    assert {"feature_a", "feature_b"}.issubset(result["predictors"])
+
+
+@pytest.mark.parametrize(
+    ("mutation", "cause"),
+    [
+        ("missing_slippage", "uses_slippage"),
+        ("invalid_spread", "uses_spread"),
+    ],
+)
+def test_matrix_contextualizes_transitive_dependency_contract_failures(mutation, cause):
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", ["feature_b"])
+    provenance["feature_b"] = _synthetic_provenance("feature_b", [])
+    if mutation == "missing_slippage":
+        provenance["feature_b"].pop("uses_slippage")
+    else:
+        provenance["feature_b"]["uses_spread"] = "false"
+
+    with pytest.raises(ValueError) as exc_info:
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a", "feature_b"), provenance=provenance
+        )
+
+    message = str(exc_info.value)
+    assert "feature_a" in message
+    assert "feature_a -> feature_b" in message
+    assert "feature_b" in message
+    assert cause in message
 
 
 def test_matrix_admits_expanded_strict_fields_but_keeps_exclusions(tmp_path):
@@ -165,7 +454,7 @@ def test_discovery_has_non_overlapping_cohorts_and_no_lqc_predictor():
 
     report = discovery.discover_pretrade_discriminators(matrix_data)
 
-    feature = report["features"]["risk_points"]
+    feature = report["features"]["atr"]
     cohort_ids = [
         set(item["record_ids"])
         for item in feature["global"]["cohorts"].values()
@@ -182,7 +471,7 @@ def test_temporal_split_is_deterministic_and_warns_for_small_cohorts():
     first = temporal.audit_temporal_train_test(matrix_data, discovery_data)
     second = temporal.audit_temporal_train_test(matrix_data, discovery_data)
 
-    first_feature = first["segments"]["global"][0]["features"]["risk_points"]
+    first_feature = first["segments"]["global"][0]["features"]["atr"]
     assert first == second
     assert first_feature["train_trade_count"] == 6
     assert first_feature["test_trade_count"] == 6
@@ -194,7 +483,7 @@ def test_temporal_split_is_deterministic_and_warns_for_small_cohorts():
 def test_scorecard_rejects_freezes_and_promotes_by_gates():
     reject = scorecard.score_feature(
         "lower_quartile_closes",
-        provenance={"availability_timing": "pre_trade", "leakage_risk": "low", "source_basis": "code_verified"},
+        provenance={"availability_timing": "pre_decision", "leakage_risk": "low", "source_basis": "code_verified"},
         sample={"count": 200, "winner_count": 80, "loser_count": 120},
         sign_summary={"positive": 3, "negative": 0},
         temporal_summary={"sufficient": True, "non_negative": True},
@@ -203,7 +492,7 @@ def test_scorecard_rejects_freezes_and_promotes_by_gates():
     )
     frozen = scorecard.score_feature(
         "risk_points",
-        provenance={"availability_timing": "pre_trade", "leakage_risk": "low", "source_basis": "code_verified"},
+        provenance={"availability_timing": "at_entry", "leakage_risk": "medium", "source_basis": "code_verified"},
         sample={"count": 200, "winner_count": 80, "loser_count": 120},
         sign_summary={"positive": 2, "negative": 1},
         temporal_summary={"sufficient": True, "non_negative": True},
@@ -211,8 +500,8 @@ def test_scorecard_rejects_freezes_and_promotes_by_gates():
         outlier_conflict=False,
     )
     promote = scorecard.score_feature(
-        "reward_points",
-        provenance={"availability_timing": "pre_trade", "leakage_risk": "low", "source_basis": "code_verified"},
+        "atr",
+        provenance={"availability_timing": "pre_decision", "leakage_risk": "low", "source_basis": "code_verified"},
         sample={"count": 200, "winner_count": 80, "loser_count": 120},
         sign_summary={"positive": 3, "negative": 0},
         temporal_summary={"sufficient": True, "non_negative": True},
@@ -221,7 +510,7 @@ def test_scorecard_rejects_freezes_and_promotes_by_gates():
     )
     concentrated = scorecard.score_feature(
         "pressure_score",
-        provenance={"availability_timing": "pre_trade", "leakage_risk": "low", "source_basis": "code_verified"},
+        provenance={"availability_timing": "pre_decision", "leakage_risk": "low", "source_basis": "code_verified"},
         sample={"count": 200, "winner_count": 80, "loser_count": 120},
         sign_summary={"positive": 3, "negative": 0},
         temporal_summary={"sufficient": True, "non_negative": True},
@@ -230,7 +519,7 @@ def test_scorecard_rejects_freezes_and_promotes_by_gates():
     )
 
     assert reject["decision"] == "rejected"
-    assert frozen["decision"] == "frozen"
+    assert frozen["decision"] == "rejected"
     assert promote["decision"] == "candidate_discriminator_hypothesis"
     assert "single_symbol_timeframe_concentration" in concentrated["reasons"]
 

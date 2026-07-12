@@ -11,9 +11,12 @@ from typing import Any
 
 from trading_bot.research.edge_v2_feature_separation import load_journal_records
 from trading_bot.research.edge_v2_feature_timing_provenance import (
+    PROVENANCE_REGISTRY,
     combine_source_provenance,
     get_field_provenance,
+    is_verified_pretrade_low,
     load_provenance_file,
+    strict_exclusion_reason,
 )
 
 
@@ -28,6 +31,10 @@ EXCLUDED_PREDICTORS = OUTCOME_FIELDS | {
     "candle_range_over_prior_range_points", "risk_points_over_candle_range",
     "reward_points_over_candle_range", "entry", "stop_loss", "take_profit",
     "planned_rr",
+    "spread", "spread_points", "spread_price", "point_size", "tick_size",
+    "slippage_points", "slippage_price", "entry_distance_from_sweep", "entry_score",
+    "context_score", "distance_to_h1_high", "distance_to_h1_low", "distance_to_h1_mid",
+    "extension_atr", "volatility",
 }
 DERIVED_SOURCES = {
     "reward_to_risk_planned": ("reward_points", "risk_points"),
@@ -36,6 +43,30 @@ DERIVED_SOURCES = {
     "risk_points_over_atr": ("risk_points", "atr"),
     "reward_points_over_atr": ("reward_points", "atr"),
 }
+STRICT_PROVENANCE_REQUIRED_KEYS = (
+    "field_name", "availability_timing", "source_basis", "leakage_risk",
+    "source_module_or_function", "depends_on_fields", "source_timestamp",
+    "strategy_decision_timestamp", "entry_timestamp", "uses_setup_bar",
+    "uses_next_entry_bar", "uses_spread_or_slippage", "uses_spread",
+    "uses_slippage", "uses_post_entry_information",
+    "strict_discovery_eligible", "exclusion_reason",
+)
+STRICT_PROVENANCE_BOOLEAN_KEYS = (
+    "uses_setup_bar", "uses_next_entry_bar", "uses_spread_or_slippage",
+    "uses_spread", "uses_slippage", "uses_post_entry_information",
+    "strict_discovery_eligible",
+)
+STRICT_PROVENANCE_STRING_KEYS = (
+    "field_name", "availability_timing", "source_basis", "leakage_risk",
+    "source_module_or_function", "source_timestamp",
+    "strategy_decision_timestamp", "entry_timestamp",
+)
+RAW_SOURCE_DEPENDENCIES = frozenset(
+    dependency
+    for entry in PROVENANCE_REGISTRY.values()
+    for dependency in entry["depends_on_fields"]
+    if dependency not in PROVENANCE_REGISTRY
+)
 
 
 def discover_batch_journals(batch_dirs: list[str | Path]) -> list[Path]:
@@ -99,8 +130,9 @@ def _load_unique_records(journals: list[Path]) -> tuple[list[dict[str, Any]], li
 def _build_matrix(
     records: list[dict[str, Any]], manifest: list[dict[str, Any]], provenance: dict[str, dict[str, Any]]
 ) -> dict[str, Any]:
-    base_predictors = _strict_predictors(records, provenance)
-    derived = _strict_derivatives(provenance)
+    base_predictors, excluded = _strict_predictors(records, provenance)
+    derived, derived_excluded = _strict_derivatives(provenance)
+    excluded.update(derived_excluded)
     predictors = sorted([*base_predictors, *derived])
     feature_provenance = {
         feature: _feature_provenance(feature, provenance) for feature in predictors
@@ -117,30 +149,53 @@ def _build_matrix(
         "accepted_journal_count": sum(item["accepted"] for item in manifest),
         "rejected_journal_count": sum(not item["accepted"] for item in manifest),
         "predictors": predictors,
+        "analyzed_feature_count": len(predictors),
         "labels": ["pnl", "outcome", "r_multiple"],
         "metrics_only_fields": sorted(OUTCOME_FIELDS),
         "excluded_predictors": sorted(EXCLUDED_PREDICTORS),
         "feature_provenance": feature_provenance,
+        "strict_excluded_features": excluded,
         "records": matrix_records,
         "disclaimer": "Research-only matrix; no strategy, execution, or rule output is produced.",
     }
 
 
-def _strict_predictors(records: list[dict[str, Any]], provenance: dict[str, dict[str, Any]]) -> list[str]:
+def _strict_predictors(
+    records: list[dict[str, Any]], provenance: dict[str, dict[str, Any]]
+) -> tuple[list[str], dict[str, dict[str, Any]]]:
     fields = sorted({key for row in records for key in row})
-    return [
-        field for field in fields
-        if field not in EXCLUDED_PREDICTORS | METADATA_FIELDS
-        and _is_strict(_feature_provenance(field, provenance))
-        and any(_number(row.get(field)) is not None for row in records)
-    ]
+    predictors, excluded = [], {}
+    for field in fields:
+        if field in METADATA_FIELDS or field.startswith("_"):
+            continue
+        numeric = any(_number(row.get(field)) is not None for row in records)
+        if field in EXCLUDED_PREDICTORS:
+            if field == "lower_quartile_closes":
+                excluded[field] = _excluded(field, _feature_provenance(field, provenance), "permanently_excluded")
+            continue
+        if not numeric:
+            continue
+        item = _feature_provenance(field, provenance)
+        _require_declared_provenance(field, item, provenance)
+        if _is_strict(item):
+            predictors.append(field)
+        else:
+            excluded[field] = _excluded(field, item, strict_exclusion_reason(item))
+    return predictors, excluded
 
 
-def _strict_derivatives(provenance: dict[str, dict[str, Any]]) -> dict[str, tuple[str, ...]]:
-    return {
-        name: sources for name, sources in DERIVED_SOURCES.items()
-        if _is_strict(_feature_provenance(name, provenance))
-    }
+def _strict_derivatives(
+    provenance: dict[str, dict[str, Any]]
+) -> tuple[dict[str, tuple[str, ...]], dict[str, dict[str, Any]]]:
+    derived, excluded = {}, {}
+    for name, sources in DERIVED_SOURCES.items():
+        item = _feature_provenance(name, provenance)
+        _require_declared_provenance(name, item, provenance)
+        if _is_strict(item):
+            derived[name] = sources
+        else:
+            excluded[name] = _excluded(name, item, strict_exclusion_reason(item))
+    return derived, excluded
 
 
 def _feature_provenance(feature: str, provenance: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -152,11 +207,175 @@ def _feature_provenance(feature: str, provenance: dict[str, dict[str, Any]]) -> 
 
 
 def _is_strict(entry: dict[str, Any]) -> bool:
-    return (
-        entry.get("source_basis") == "code_verified"
-        and entry.get("availability_timing") == "pre_trade"
-        and entry.get("leakage_risk") == "low"
+    return is_verified_pretrade_low(entry)
+
+
+def _require_declared_provenance(
+    field: str, entry: Any, provenance: dict[str, dict[str, Any]]
+) -> None:
+    _validate_provenance_contract(field, entry)
+    if entry["availability_timing"] != "pre_decision":
+        return
+    _validate_dependency_graph(
+        root=field,
+        current=field,
+        entry=entry,
+        provenance=provenance,
+        path=[field],
+        active={field},
     )
+    if entry["strict_discovery_eligible"] != _is_strict(entry):
+        raise ValueError(
+            f"Feature '{field}' has inconsistent strict_discovery_eligible metadata"
+        )
+
+
+def _validate_provenance_contract(
+    field: str, entry: Any, *, root: str | None = None, path: list[str] | None = None
+) -> None:
+    if not isinstance(entry, dict):
+        raise ValueError(
+            f"Feature '{field}' has invalid strict provenance metadata; expected object"
+        )
+    missing = sorted(key for key in STRICT_PROVENANCE_REQUIRED_KEYS if key not in entry)
+    if missing:
+        raise ValueError(
+            f"Feature '{field}' has incomplete strict provenance metadata; "
+            f"missing required keys: {', '.join(missing)}"
+        )
+    for key in STRICT_PROVENANCE_STRING_KEYS:
+        if not isinstance(entry[key], str) or not entry[key]:
+            raise ValueError(
+                f"Feature '{field}' has invalid strict provenance field '{key}'; "
+                f"expected non-empty string, got {entry[key]!r} ({type(entry[key]).__name__})"
+            )
+    if not isinstance(entry["depends_on_fields"], list) or not all(
+        isinstance(value, str) for value in entry["depends_on_fields"]
+    ):
+        raise ValueError(
+            f"Feature '{field}' has invalid strict provenance field 'depends_on_fields'; "
+            "expected list of strings"
+        )
+    if entry["exclusion_reason"] is not None and not isinstance(
+        entry["exclusion_reason"], str
+    ):
+        raise ValueError(
+            f"Feature '{field}' has invalid strict provenance field 'exclusion_reason'; "
+            "expected string or None"
+        )
+    for key in STRICT_PROVENANCE_BOOLEAN_KEYS:
+        if type(entry[key]) is not bool:
+            raise ValueError(
+                f"Feature '{field}' has invalid strict provenance field '{key}'; "
+                f"expected boolean, got {entry[key]!r} ({type(entry[key]).__name__})"
+            )
+    if entry["source_basis"] == "unknown" or entry["availability_timing"] == "unknown":
+        if root is not None and path is not None:
+            raise _dependency_error(
+                root, path, f"reaches timing '{entry['availability_timing']}'"
+            )
+        raise ValueError(f"strict discovery requires explicit provenance for {field}")
+    if entry["availability_timing"] not in {
+        "pre_decision", "at_entry", "post_entry", "post_trade",
+    }:
+        raise ValueError(
+            f"Feature '{field}' has invalid strict provenance timing "
+            f"'{entry['availability_timing']}'"
+        )
+    if entry["availability_timing"] == "pre_decision":
+        contradictory = [
+            key
+            for key in (
+                "uses_next_entry_bar", "uses_spread_or_slippage", "uses_spread",
+                "uses_slippage", "uses_post_entry_information",
+            )
+            if entry[key]
+        ]
+        if contradictory:
+            raise ValueError(
+                f"strict discovery timing contradiction for {field}: "
+                f"pre_decision cannot declare {', '.join(contradictory)}"
+            )
+
+
+def _validate_dependency_graph(
+    *,
+    root: str,
+    current: str,
+    entry: dict[str, Any],
+    provenance: dict[str, dict[str, Any]],
+    path: list[str],
+    active: set[str],
+) -> None:
+    for dependency in entry["depends_on_fields"]:
+        dependency_path = [*path, dependency]
+        if dependency in active:
+            raise ValueError(
+                "strict provenance dependency cycle: " + " -> ".join(dependency_path)
+            )
+        if _is_declared_raw_source(dependency):
+            continue
+        if not _is_registered_provenance_field(dependency, provenance):
+            raise _dependency_error(root, dependency_path, "contains unregistered dependency")
+        dependency_entry = _resolve_dependency_entry(dependency, provenance)
+        try:
+            _validate_provenance_contract(
+                dependency, dependency_entry, root=root, path=dependency_path
+            )
+        except ValueError as exc:
+            raise _dependency_error(
+                root,
+                dependency_path,
+                f"dependency contract validation failed: {exc}",
+            ) from exc
+        timing = dependency_entry["availability_timing"]
+        if timing != "pre_decision":
+            raise _dependency_error(root, dependency_path, f"reaches timing '{timing}'")
+        if not dependency_entry["strict_discovery_eligible"]:
+            raise _dependency_error(
+                root,
+                dependency_path,
+                "contains strict_discovery_eligible=false metadata",
+            )
+        _validate_dependency_graph(
+            root=root,
+            current=dependency,
+            entry=dependency_entry,
+            provenance=provenance,
+            path=dependency_path,
+            active=active | {dependency},
+        )
+
+
+def _is_declared_raw_source(dependency: str) -> bool:
+    return dependency in RAW_SOURCE_DEPENDENCIES and dependency not in PROVENANCE_REGISTRY
+
+
+def _resolve_dependency_entry(
+    dependency: str, provenance: dict[str, dict[str, Any]]
+) -> Any:
+    if dependency in provenance:
+        return provenance[dependency]
+    if dependency in PROVENANCE_REGISTRY:
+        return PROVENANCE_REGISTRY[dependency]
+    return _feature_provenance(dependency, provenance)
+
+
+def _is_registered_provenance_field(
+    dependency: str, provenance: dict[str, dict[str, Any]]
+) -> bool:
+    return dependency in provenance or dependency in PROVENANCE_REGISTRY or dependency in DERIVED_SOURCES or dependency in OUTCOME_FIELDS
+
+
+def _dependency_error(root: str, path: list[str], reason: str) -> ValueError:
+    return ValueError(
+        f"Feature '{root}' is not eligible for strict discovery; dependency path "
+        f"{' -> '.join(path)} {reason}; strict discovery requires pre_decision-only dependencies"
+    )
+
+
+def _excluded(field: str, entry: dict[str, Any], reason: str) -> dict[str, Any]:
+    return {"field_name": field, "availability_timing": entry.get("availability_timing"), "reason": reason, "provenance": entry}
 
 
 def _matrix_record(

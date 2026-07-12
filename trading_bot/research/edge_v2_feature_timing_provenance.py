@@ -43,12 +43,28 @@ REQUIRED_PROVENANCE_KEYS = (
     "depends_on_pnl",
     "depends_on_future_bars",
     "depends_on_realized_outcome",
+    "source_timestamp",
+    "strategy_decision_timestamp",
+    "entry_timestamp",
+    "uses_setup_bar",
+    "uses_next_entry_bar",
+    "uses_spread_or_slippage",
+    "uses_spread",
+    "uses_slippage",
+    "uses_post_entry_information",
+    "strict_discovery_eligible",
+    "exclusion_reason",
     "reason",
 )
+TIMING_CLASSES = ("pre_decision", "at_entry", "post_entry", "post_trade", "unknown")
 NORMALIZED_FIELD_SOURCES = {
     "candle_range_over_prior_range_points": ("candle_range", "prior_range_points"),
     "risk_points_over_prior_range_points": ("risk_points", "prior_range_points"),
+    "reward_points_over_prior_range_points": ("reward_points", "prior_range_points"),
     "candle_range_over_atr": ("candle_range", "atr"),
+    "risk_points_over_atr": ("risk_points", "atr"),
+    "reward_points_over_atr": ("reward_points", "atr"),
+    "reward_to_risk_planned": ("reward_points", "risk_points"),
 }
 OUTCOME_FIELDS = {
     "pnl",
@@ -80,8 +96,34 @@ def _entry(
     pnl: bool = False,
     future_bars: bool = False,
     realized: bool = False,
+    source_timestamp: str | None = None,
+    decision_timestamp: str = "completed_setup_bar",
+    entry_timestamp: str = "next_entry_bar_open",
+    uses_setup_bar: bool = False,
+    uses_next_entry_bar: bool = False,
+    uses_spread_or_slippage: bool = False,
+    uses_spread: bool | None = None,
+    uses_slippage: bool | None = None,
+    uses_post_entry_information: bool | None = None,
+    exclusion_reason: str | None = None,
     reason: str,
 ) -> dict[str, Any]:
+    if timing not in TIMING_CLASSES:
+        raise ValueError(f"unsupported timing classification: {timing}")
+    if uses_post_entry_information is None:
+        uses_post_entry_information = timing in {"post_entry", "post_trade"}
+    if uses_spread is None:
+        uses_spread = uses_spread_or_slippage
+    if uses_slippage is None:
+        uses_slippage = uses_spread_or_slippage
+    uses_spread_or_slippage = uses_spread_or_slippage or uses_spread or uses_slippage
+    if source_timestamp is None:
+        source_timestamp = (
+            "next_entry_bar_open" if timing == "at_entry"
+            else "trade_close" if timing == "post_trade"
+            else "completed_setup_bar" if timing == "pre_decision"
+            else "unknown"
+        )
     return {
         "field_name": field_name,
         "category": category,
@@ -94,28 +136,48 @@ def _entry(
         "depends_on_pnl": pnl,
         "depends_on_future_bars": future_bars,
         "depends_on_realized_outcome": realized,
+        "source_timestamp": source_timestamp,
+        "strategy_decision_timestamp": decision_timestamp,
+        "entry_timestamp": entry_timestamp,
+        "uses_setup_bar": uses_setup_bar,
+        "uses_next_entry_bar": uses_next_entry_bar,
+        "uses_spread_or_slippage": uses_spread_or_slippage,
+        "uses_spread": uses_spread,
+        "uses_slippage": uses_slippage,
+        "uses_post_entry_information": uses_post_entry_information,
+        "strict_discovery_eligible": (
+            timing == "pre_decision"
+            and risk == "low"
+            and basis == "code_verified"
+            and not uses_next_entry_bar
+            and not uses_spread_or_slippage
+            and not uses_post_entry_information
+        ),
+        "exclusion_reason": exclusion_reason,
         "reason": reason,
     }
 
 
 PROVENANCE_REGISTRY = {
     "atr": _entry(
-        "atr", category="market_context", timing="pre_trade", risk="low",
+        "atr", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/backtest/runner.py:_atr",
-        depends=["historical bars"],
+        depends=["historical bars"], uses_setup_bar=True,
         reason="Runner calculates ATR from historical bars before creating the pending trade.",
     ),
     "risk_points": _entry(
-        "risk_points", category="risk_reward_construction", timing="pre_trade", risk="low",
+        "risk_points", category="risk_reward_construction", timing="at_entry", risk="medium",
         basis="code_verified", source="trading_bot/backtest/runner.py:_close_trade",
-        depends=["entry", "stop_loss"],
-        reason="Calculated as entry-to-stop distance; both values come from the planned setup.",
+        depends=["effective entry", "stop_loss"], uses_setup_bar=True, uses_next_entry_bar=True,
+        uses_spread_or_slippage=True, exclusion_reason="depends_on_next_entry_bar_effective_entry",
+        reason="Effective entry uses next-bar open plus normalized spread and slippage, so the risk distance is unavailable at the decision timestamp.",
     ),
     "reward_points": _entry(
-        "reward_points", category="risk_reward_construction", timing="pre_trade", risk="low",
+        "reward_points", category="risk_reward_construction", timing="at_entry", risk="medium",
         basis="code_verified", source="trading_bot/backtest/runner.py:_close_trade",
-        depends=["entry", "take_profit"],
-        reason="Calculated as entry-to-planned-take-profit distance, not realized exit distance.",
+        depends=["effective entry", "take_profit"], uses_setup_bar=True, uses_next_entry_bar=True,
+        uses_spread_or_slippage=True, exclusion_reason="depends_on_next_entry_bar_effective_entry",
+        reason="Effective entry uses next-bar open plus normalized spread and slippage, so the reward distance is unavailable at the decision timestamp.",
     ),
     "candle_range": _entry(
         "candle_range", category="market_context", timing="at_entry", risk="medium",
@@ -124,63 +186,63 @@ PROVENANCE_REGISTRY = {
         reason="Runner computes high-low before creating the pending trade; closed-candle provenance is not persisted separately.",
     ),
     "range_duration_bars": _entry(
-        "range_duration_bars", category="market_context", timing="pre_trade", risk="low",
+        "range_duration_bars", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/analysis/edge_v2.py:EdgeV2Diagnostics.evaluate",
-        depends=["prior candle ranges", "recent candle ranges"],
+        depends=["prior candle ranges", "recent candle ranges"], uses_setup_bar=True,
         reason="Counts qualifying ranges in the completed historical windows before the runner creates a pending trade.",
     ),
     "atr_contraction_pct": _entry(
-        "atr_contraction_pct", category="market_context", timing="pre_trade", risk="low",
+        "atr_contraction_pct", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/analysis/edge_v2.py:EdgeV2Diagnostics._contraction_pct",
-        depends=["prior candle ranges", "recent candle ranges"],
+        depends=["prior candle ranges", "recent candle ranges"], uses_setup_bar=True,
         reason="Compares average ranges from completed prior and recent historical windows before pending-trade creation.",
     ),
     "recent_range_points": _entry(
-        "recent_range_points", category="market_context", timing="pre_trade", risk="low",
+        "recent_range_points", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/analysis/edge_v2.py:EdgeV2Diagnostics.evaluate",
-        depends=["recent candle highs", "recent candle lows"],
+        depends=["recent candle highs", "recent candle lows"], uses_setup_bar=True,
         reason="Uses the high-low span of the completed recent historical window before pending-trade creation.",
     ),
     "prior_range_points": _entry(
-        "prior_range_points", category="market_context", timing="pre_trade", risk="low",
+        "prior_range_points", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/analysis/edge_v2.py:EdgeV2Diagnostics.evaluate",
         depends=["prior candle history"],
         reason="Computed from the prior historical window before the runner creates a pending trade.",
     ),
     "upper_quartile_closes": _entry(
-        "upper_quartile_closes", category="market_context", timing="pre_trade", risk="low",
+        "upper_quartile_closes", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/analysis/edge_v2.py:EdgeV2Diagnostics._pressure",
-        depends=["recent candle closes", "recent candle highs", "recent candle lows"],
+        depends=["recent candle closes", "recent candle highs", "recent candle lows"], uses_setup_bar=True,
         reason="Counts closes in the upper quartile of the completed recent historical window before pending-trade creation.",
     ),
     "lower_quartile_closes": _entry(
-        "lower_quartile_closes", category="market_context", timing="pre_trade", risk="low",
+        "lower_quartile_closes", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/analysis/edge_v2.py:EdgeV2Diagnostics._pressure",
-        depends=["historical closes"],
+        depends=["historical closes"], uses_setup_bar=True,
         reason="Computed from completed history before pending-trade creation.",
     ),
     "average_pullback_depth": _entry(
-        "average_pullback_depth", category="market_context", timing="pre_trade", risk="low",
+        "average_pullback_depth", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/analysis/edge_v2.py:EdgeV2Diagnostics._average_pullback",
-        depends=["recent candle closes", "recent range points"],
+        depends=["recent candle closes", "recent range points"], uses_setup_bar=True,
         reason="Measures pullbacks from closes in the completed recent historical window before pending-trade creation.",
     ),
     "price_position_in_range": _entry(
-        "price_position_in_range", category="market_context", timing="pre_trade", risk="low",
+        "price_position_in_range", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/analysis/edge_v2.py:EdgeV2Diagnostics._pressure",
-        depends=["historical closes", "historical highs", "historical lows"],
+        depends=["historical closes", "historical highs", "historical lows"], uses_setup_bar=True,
         reason="Computed from the historical pressure window before pending-trade creation.",
     ),
     "pressure_score": _entry(
-        "pressure_score", category="market_context", timing="pre_trade", risk="low",
+        "pressure_score", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/analysis/edge_v2.py:EdgeV2Diagnostics._pressure",
-        depends=["historical closes"],
+        depends=["historical closes"], uses_setup_bar=True,
         reason="Computed from the historical pressure window before pending-trade creation.",
     ),
     "compression_score": _entry(
-        "compression_score", category="market_context", timing="pre_trade", risk="low",
+        "compression_score", category="market_context", timing="pre_decision", risk="low",
         basis="code_verified", source="trading_bot/analysis/edge_v2.py:EdgeV2Diagnostics.evaluate",
-        depends=["recent candle history", "prior candle history"],
+        depends=["recent candle history", "prior candle history"], uses_setup_bar=True,
         reason="Computed from recent and prior historical windows before pending-trade creation.",
     ),
     "sweep_depth": _entry(
@@ -250,31 +312,51 @@ def combine_source_provenance(name: str, sources: list[dict[str, Any]]) -> dict[
             name, category="unknown", timing="unknown", risk="unknown", basis="unknown", source=None,
             reason="Normalization has no verified source fields.",
         ) | {"source_fields": []}
-    timing_order = {"pre_trade": 0, "at_entry": 1, "unknown": 2, "post_trade": 3}
+    timing_order = {"pre_decision": 0, "at_entry": 1, "post_entry": 2, "unknown": 3, "post_trade": 4}
     risk_order = {"low": 0, "medium": 1, "unknown": 2, "high": 3}
     timing_source = max(sources, key=lambda item: timing_order.get(item["availability_timing"], 2))
     risk_source = max(sources, key=lambda item: risk_order.get(item["leakage_risk"], 2))
     return _entry(
         name, category="market_context", timing=timing_source["availability_timing"],
         risk=risk_source["leakage_risk"], basis="code_verified" if all(item["source_basis"] == "code_verified" for item in sources) else "unknown",
-        source=None, depends=[item["field_name"] for item in sources],
+        source="trading_bot/research/edge_v2_feature_timing_provenance.py:combine_source_provenance",
+        depends=[item["field_name"] for item in sources],
         exit_price=any(item["depends_on_exit_price"] for item in sources),
         pnl=any(item["depends_on_pnl"] for item in sources),
         future_bars=any(item["depends_on_future_bars"] for item in sources),
         realized=any(item["depends_on_realized_outcome"] for item in sources),
+        source_timestamp=timing_source["source_timestamp"],
+        decision_timestamp=timing_source["strategy_decision_timestamp"],
+        entry_timestamp=timing_source["entry_timestamp"],
+        uses_setup_bar=any(item["uses_setup_bar"] for item in sources),
+        uses_next_entry_bar=any(item["uses_next_entry_bar"] for item in sources),
+        uses_spread_or_slippage=any(item["uses_spread_or_slippage"] for item in sources),
+        uses_spread=any(item["uses_spread"] for item in sources),
+        uses_slippage=any(item["uses_slippage"] for item in sources),
+        uses_post_entry_information=any(item["uses_post_entry_information"] for item in sources),
+        exclusion_reason=timing_source.get("exclusion_reason"),
         reason="Maximum timing and leakage risk inherited from source fields.",
     ) | {"source_fields": [item["field_name"] for item in sources]}
 
 
 def is_verified_pretrade_low(entry: dict[str, Any]) -> bool:
-    return entry.get("availability_timing") == "pre_trade" and entry.get("leakage_risk") == "low"
+    return (
+        entry.get("source_basis") == "code_verified"
+        and entry.get("availability_timing") == "pre_decision"
+        and entry.get("leakage_risk") == "low"
+        and not entry.get("uses_next_entry_bar")
+        and not entry.get("uses_spread_or_slippage")
+        and not entry.get("uses_spread")
+        and not entry.get("uses_slippage")
+        and not entry.get("uses_post_entry_information")
+    )
 
 
 def strict_exclusion_reason(entry: dict[str, Any]) -> str:
     return (
-        "requires availability_timing=pre_trade and leakage_risk=low; "
+        "requires code_verified/pre_decision/low with no next_entry_bar, spread/slippage, or post_entry dependency; "
         f"got availability_timing={entry.get('availability_timing')} "
-        f"and leakage_risk={entry.get('leakage_risk')}"
+        f"and leakage_risk={entry.get('leakage_risk')}; exclusion_reason={entry.get('exclusion_reason')}"
     )
 
 
@@ -282,11 +364,14 @@ def build_feature_timing_provenance_report(records: list[dict[str, Any]] | None 
     inputs = records or []
     registry = copy.deepcopy(PROVENANCE_REGISTRY)
     normalized = {
+        name: get_field_provenance(name)
+        for name in ("risk_points", "reward_points")
+    } | {
         name: combine_source_provenance(name, [get_field_provenance(field) for field in fields])
         for name, fields in NORMALIZED_FIELD_SOURCES.items()
     }
     unknown = [name for name, value in registry.items() if value["availability_timing"] == "unknown"]
-    low_pretrade = [name for name, value in registry.items() if is_verified_pretrade_low(value)]
+    low_predecision = [name for name, value in registry.items() if is_verified_pretrade_low(value)]
     posttrade = [name for name, value in registry.items() if value["leakage_risk"] == "high"]
     fields_seen = sorted({key for record in inputs for key in record})
     return {
@@ -299,7 +384,7 @@ def build_feature_timing_provenance_report(records: list[dict[str, Any]] | None 
         "normalized_field_provenance": normalized,
         "known_fields": [name for name, value in registry.items() if value["source_basis"] == "code_verified"],
         "unknown_fields": unknown,
-        "low_leakage_pre_trade_fields": low_pretrade,
+        "low_leakage_pre_decision_fields": low_predecision,
         "unknown_timing_fields": unknown,
         "post_trade_or_high_leakage_fields": posttrade,
         "candidate_discriminator_provenance": {
