@@ -36,6 +36,9 @@ OBSERVATION_REQUIRED = (
     "observation_started_at_utc", "observation_completed_at_utc", "immutable_run_id",
     "results_not_inspected_before_record_written",
 )
+POSITION_OVERLAP_POLICY = "one_active_outcome_per_symbol_timeframe_until_first_exit_or_bar_48; later_raw_events_suppressed_overlap"
+SCORECARD_POLICY = "every_support_stability_temporal_cost_and_multiplicity_gate_must_pass"
+CANDIDATE_HYPOTHESIS_POLICY = "only_a_fully_passing_retrospective_scorecard_may_create_a_candidate_discriminator_hypothesis_never_a_trading_rule"
 
 
 class ActivationConformanceError(ValueError):
@@ -88,10 +91,12 @@ def _detector_contract(manifest: Mapping[str, Any]) -> dict[str, Any]:
     return detector
 
 
-def _validate_execution_config(manifest: Mapping[str, Any], config: Mapping[str, Any]) -> None:
+def _validate_execution_config(manifest: Mapping[str, Any], manifest_path: Path, config: Mapping[str, Any]) -> None:
     _expect(config.get("schema_version"), "vrt_frozen_execution_configuration.v1", "execution config schema")
     _expect(config.get("family_id"), FAMILY_ID, "execution config family")
     _expect(config.get("family_version"), manifest.get("preregistration_version"), "execution config family version")
+    _expect(config.get("preregistration_manifest_path"), str(PACKAGE_RELATIVE / MANIFEST_NAME).replace("\\", "/"), "execution config manifest path")
+    _expect(config.get("preregistration_manifest_sha256"), _sha256_file(manifest_path), "execution config manifest hash")
     _expect(config.get("symbols_timeframes"), manifest.get("universe"), "symbol/timeframe")
     _expect(config.get("temporal_split"), manifest.get("periods"), "temporal split")
     _expect(config.get("detector"), _detector_contract(manifest), "detector")
@@ -108,6 +113,9 @@ def _validate_execution_config(manifest: Mapping[str, Any], config: Mapping[str,
     _expect(config.get("outcome_contract"), manifest.get("outcome_contract"), "outcome contract")
     _expect(config.get("gates"), manifest.get("gates"), "gates")
     _expect(config.get("closure_policy"), manifest.get("closure_policy"), "closure policy")
+    _expect(config.get("position_overlap_policy"), POSITION_OVERLAP_POLICY, "position-overlap policy")
+    _expect(config.get("scorecard_policy"), SCORECARD_POLICY, "scorecard policy")
+    _expect(config.get("candidate_hypothesis_policy"), CANDIDATE_HYPOTHESIS_POLICY, "candidate-hypothesis policy")
     _expect(config.get("execution_authorized"), False, "execution authorization")
     if config.get("completed_bar_policy") != "completed_bar_t_only; no_partial_or_future_bar_dependency":
         raise ActivationConformanceError("completed-bar policy mismatch")
@@ -154,7 +162,7 @@ def validate_activation_package(
         raise ActivationConformanceError("implemented detector/provenance mismatch") from exc
     _expect(manifest.get("preregistration_version"), FAMILY_ID, "preregistration family")
     _expect(manifest.get("execution_authorized_by_this_manifest"), False, "manifest execution authorization")
-    _validate_execution_config(manifest, config)
+    _validate_execution_config(manifest, manifest_path, config)
     _expect(record.get("schema_version"), "vrt_activation_record.v1", "activation record schema")
     _expect(record.get("family_id"), FAMILY_ID, "activation record family")
     _expect(record.get("family_version"), FAMILY_ID, "activation record family version")

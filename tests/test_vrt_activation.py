@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -87,6 +88,31 @@ def test_detector_predictor_and_outcome_config_mismatches_fail_closed(tmp_path):
     _write_json(config_path, config)
     with pytest.raises(vrt_activation.ActivationConformanceError, match="outcome"):
         vrt_activation.validate_activation_package(ROOT, execution_config_path=config_path)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error"),
+    [
+        ("preregistration_manifest_sha256", "0" * 64, "execution config manifest hash"),
+        ("position_overlap_policy", "allow_all_overlaps", "position-overlap policy"),
+        ("scorecard_policy", "optional", "scorecard policy"),
+        ("candidate_hypothesis_policy", "trade_rule", "candidate-hypothesis policy"),
+    ],
+)
+def test_config_policy_drift_fails_even_when_record_hash_is_updated(tmp_path, field, value, error):
+    config_path = _config(tmp_path)
+    record_path = _prepared_record(tmp_path)
+    config = _json(config_path)
+    config[field] = value
+    _write_json(config_path, config)
+    record = _json(record_path)
+    record["frozen_execution_configuration_sha256"] = hashlib.sha256(config_path.read_bytes()).hexdigest()
+    _write_json(record_path, record)
+
+    with pytest.raises(vrt_activation.ActivationConformanceError, match=error):
+        vrt_activation.validate_activation_package(
+            ROOT, execution_config_path=config_path, activation_record_path=record_path
+        )
 
 
 def test_unexpected_execution_flag_fails_closed(tmp_path):
