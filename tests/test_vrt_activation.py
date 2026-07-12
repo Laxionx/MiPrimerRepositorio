@@ -42,7 +42,7 @@ def test_active_activation_package_is_deterministic():
 
     assert result["status"] == "active_prospective"
     assert result["activation_record_sha256"] == vrt_activation.canonical_json_sha256(_json(RECORD))
-    assert result["prospective_activation_at_utc"] == "2026-07-12T23:28:01Z"
+    assert result["prospective_activation_at_utc"] == "2026-07-12T23:30:31Z"
 
 
 def test_missing_manifest_fails_closed(tmp_path):
