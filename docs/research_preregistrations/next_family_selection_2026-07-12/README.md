@@ -92,7 +92,9 @@ The fixed rubric, scorecard, and decision record select **Volatility Regime
 Transition** with 27/30, four points above the next-ranked family. This is a
 methodologically meaningful difference driven by strict observability, lower
 interpretive ambiguity, and auditability, not by historical performance. The family
-is only a preregistered proposal until this package is reviewed and merged.
+remains inactive after this package is reviewed and merged until a separate reviewed
+implementation, frozen provenance/configuration, passing conformance tests, committed
+activation record, and non-backdated UTC activation timestamp exist.
 
 See [the rubric](scoring_rubric.md), [completed scorecard](candidate_scorecard.md),
 [decision record](selection_decision.md), and [full preregistration](preregistration_volatility_regime_transition.md).

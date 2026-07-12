@@ -41,3 +41,10 @@ occurred for that prospective family. It is not an active research family until 
 preregistration has been reviewed and merged; even then, its first execution remains
 subject to the preregistration's separate implementation and prospective-validation
 gates.
+
+Volatility Regime Transition is selected but not yet active. No detector has been
+implemented, no implementation has been validated, and no prospective activation UTC
+timestamp exists. No MT5 or real-data execution has occurred. Implementation cannot
+begin until PR #28 is merged; real-data execution cannot begin until a separate
+implementation PR and a complete activation record are reviewed and frozen. Liquidity
+Sweep remains formally closed; no edge and no profitable strategy are confirmed.

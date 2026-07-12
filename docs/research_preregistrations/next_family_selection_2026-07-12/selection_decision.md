@@ -15,16 +15,13 @@ MT5 query, trade generation, or order API was used.
 
 ## Activation and blockers
 
-There are no material *parameter* blockers: every methodological parameter necessary
-for a first execution is fixed in the preregistration. The following are mandatory
-activation gates, not unresolved discretion:
-
-1. Review and merge of this documentation package.
-2. A separate implementation commit that identifies this family ID, preserves every
-   frozen parameter, and passes the required test/provenance checks.
-3. A separately recorded execution commit and manifest before any data execution.
-4. Accumulation of the declared prospective independent validation interval before
-   any final edge or profitability claim.
+The methodological parameters are frozen, but the family has no current execution or
+prospective-activation readiness. The mandatory activation gates are: merged
+preregistration; reviewed/frozen implementation commit; reviewed/frozen finalized
+provenance artifact; passing conformance tests; frozen execution configuration;
+committed machine-readable activation record; and a non-backdated activation UTC
+timestamp. Merging this PR alone does not activate the family or start prospective
+validation.
 
 Until those gates are met, Volatility Regime Transition is not active research. A
 development or internal-validation result may at most create a candidate hypothesis;

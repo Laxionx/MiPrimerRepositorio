@@ -23,8 +23,9 @@ backtest, trade generation, or execution has occurred.
 8. **Development period:** `2026-01-01T00:00:00Z` through `2026-04-30T23:59:59Z`.
 9. **Internal validation period:** `2026-05-01T00:00:00Z` through
    `2026-07-10T21:00:00Z`.
-10. **Prospective policy:** first full post-merge calendar month through three complete
-    calendar months later; no final confirmation before it completes.
+10. **Prospective policy:** begins only at the non-backdated UTC activation timestamp
+    after all seven activation requirements; it ends after three complete calendar
+    months and no final confirmation may precede it.
 11. **Decision timestamp:** close of fully completed bar `t`; all discovery inputs must
     be known by that close.
 12. **Detector:** after 64 valid bars, `atr_ratio_14_56(t) >= 1.20` and
@@ -78,3 +79,26 @@ backtest, trade generation, or execution has occurred.
 40. **Required code/execution commits:** separate implementation and execution commits
     must record this family ID, base, manifest hash, and tests before data execution.
     Their future SHAs are activation records, not unfixed methodological parameters.
+
+## Canonical semantic and activation documents
+
+`detector_semantics.md`, `feature_provenance_plan.md`, `change_control.md`, and
+`activation_conformance_observation_policy.md` are normative parts of this
+preregistration. They freeze the event stream, feature registry, outcome contract,
+seven-step activation boundary, implementation conformance, first-observation record,
+and post-observation defect policy. Their machine-readable equivalents are in the
+manifest; a disagreement fails closed and blocks execution.
+
+Volatility Regime Transition generates its event population directly from the
+volatility state machine. It must not consume or filter Liquidity Sweep candidates,
+setups, trades, winners, losers, or favorable cohorts; it does not require a sweep
+event and cannot be a rescue filter. Chance timestamp overlap does not alter this
+independence. Liquidity Sweep remains formally closed.
+
+The previously inspected `atr`, `atr_contraction_pct`, `compression_score`, and
+related ATR/range concepts appear only where justified by this preregistered volatility
+mechanism. Prior Liquidity Sweep effects did not motivate their inclusion or parameter
+values and cannot support this family. The entire `2026-01-01T00:00:00Z` through
+`2026-07-10T21:00:00Z` interval is contaminated: success there can create only a
+Candidate Discriminator Hypothesis, never confirmation. Confirmed edge requires
+post-activation independent prospective evidence.
