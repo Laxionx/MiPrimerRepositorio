@@ -177,7 +177,7 @@ def _strict_policy(provenance: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
 
 def _is_strict(item: dict[str, Any]) -> bool:
-    return all((item.get("availability_timing") == "pre_decision", item.get("leakage_risk") == "low", item.get("source_basis") == "code_verified", not item.get("uses_next_entry_bar"), not item.get("uses_spread_or_slippage"), not item.get("uses_post_entry_information")))
+    return all((item.get("availability_timing") == "pre_decision", item.get("leakage_risk") == "low", item.get("source_basis") == "code_verified", not item.get("uses_next_entry_bar"), not item.get("uses_spread_or_slippage"), not item.get("uses_spread"), not item.get("uses_slippage"), not item.get("uses_post_entry_information")))
 
 
 def _exclusion_reason(item: dict[str, Any]) -> str:

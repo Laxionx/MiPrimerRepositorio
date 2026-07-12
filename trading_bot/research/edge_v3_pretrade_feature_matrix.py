@@ -196,7 +196,11 @@ def _require_declared_provenance(field: str, entry: dict[str, Any]) -> None:
     if missing or entry.get("source_basis") == "unknown" or entry.get("availability_timing") == "unknown":
         raise ValueError(f"strict discovery requires explicit provenance for {field}")
     if entry["availability_timing"] == "pre_decision" and any(
-        entry[key] for key in ("uses_next_entry_bar", "uses_spread_or_slippage", "uses_post_entry_information")
+        entry[key]
+        for key in (
+            "uses_next_entry_bar", "uses_spread_or_slippage", "uses_spread",
+            "uses_slippage", "uses_post_entry_information",
+        )
     ):
         raise ValueError(f"strict discovery timing contradiction for {field}")
 

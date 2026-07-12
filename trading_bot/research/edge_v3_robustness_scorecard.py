@@ -130,6 +130,8 @@ def _strict(provenance: dict[str, Any]) -> bool:
         and provenance.get("leakage_risk") == "low"
         and not provenance.get("uses_next_entry_bar")
         and not provenance.get("uses_spread_or_slippage")
+        and not provenance.get("uses_spread")
+        and not provenance.get("uses_slippage")
         and not provenance.get("uses_post_entry_information")
     )
 

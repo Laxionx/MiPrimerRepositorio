@@ -49,6 +49,8 @@ REQUIRED_PROVENANCE_KEYS = (
     "uses_setup_bar",
     "uses_next_entry_bar",
     "uses_spread_or_slippage",
+    "uses_spread",
+    "uses_slippage",
     "uses_post_entry_information",
     "strict_discovery_eligible",
     "exclusion_reason",
@@ -58,7 +60,11 @@ TIMING_CLASSES = ("pre_decision", "at_entry", "post_entry", "post_trade", "unkno
 NORMALIZED_FIELD_SOURCES = {
     "candle_range_over_prior_range_points": ("candle_range", "prior_range_points"),
     "risk_points_over_prior_range_points": ("risk_points", "prior_range_points"),
+    "reward_points_over_prior_range_points": ("reward_points", "prior_range_points"),
     "candle_range_over_atr": ("candle_range", "atr"),
+    "risk_points_over_atr": ("risk_points", "atr"),
+    "reward_points_over_atr": ("reward_points", "atr"),
+    "reward_to_risk_planned": ("reward_points", "risk_points"),
 }
 OUTCOME_FIELDS = {
     "pnl",
@@ -96,6 +102,8 @@ def _entry(
     uses_setup_bar: bool = False,
     uses_next_entry_bar: bool = False,
     uses_spread_or_slippage: bool = False,
+    uses_spread: bool | None = None,
+    uses_slippage: bool | None = None,
     uses_post_entry_information: bool | None = None,
     exclusion_reason: str | None = None,
     reason: str,
@@ -104,6 +112,11 @@ def _entry(
         raise ValueError(f"unsupported timing classification: {timing}")
     if uses_post_entry_information is None:
         uses_post_entry_information = timing in {"post_entry", "post_trade"}
+    if uses_spread is None:
+        uses_spread = uses_spread_or_slippage
+    if uses_slippage is None:
+        uses_slippage = uses_spread_or_slippage
+    uses_spread_or_slippage = uses_spread_or_slippage or uses_spread or uses_slippage
     if source_timestamp is None:
         source_timestamp = (
             "next_entry_bar_open" if timing == "at_entry"
@@ -129,8 +142,17 @@ def _entry(
         "uses_setup_bar": uses_setup_bar,
         "uses_next_entry_bar": uses_next_entry_bar,
         "uses_spread_or_slippage": uses_spread_or_slippage,
+        "uses_spread": uses_spread,
+        "uses_slippage": uses_slippage,
         "uses_post_entry_information": uses_post_entry_information,
-        "strict_discovery_eligible": timing == "pre_decision" and risk == "low" and basis == "code_verified",
+        "strict_discovery_eligible": (
+            timing == "pre_decision"
+            and risk == "low"
+            and basis == "code_verified"
+            and not uses_next_entry_bar
+            and not uses_spread_or_slippage
+            and not uses_post_entry_information
+        ),
         "exclusion_reason": exclusion_reason,
         "reason": reason,
     }
@@ -297,7 +319,8 @@ def combine_source_provenance(name: str, sources: list[dict[str, Any]]) -> dict[
     return _entry(
         name, category="market_context", timing=timing_source["availability_timing"],
         risk=risk_source["leakage_risk"], basis="code_verified" if all(item["source_basis"] == "code_verified" for item in sources) else "unknown",
-        source=None, depends=[item["field_name"] for item in sources],
+        source="trading_bot/research/edge_v2_feature_timing_provenance.py:combine_source_provenance",
+        depends=[item["field_name"] for item in sources],
         exit_price=any(item["depends_on_exit_price"] for item in sources),
         pnl=any(item["depends_on_pnl"] for item in sources),
         future_bars=any(item["depends_on_future_bars"] for item in sources),
@@ -308,6 +331,8 @@ def combine_source_provenance(name: str, sources: list[dict[str, Any]]) -> dict[
         uses_setup_bar=any(item["uses_setup_bar"] for item in sources),
         uses_next_entry_bar=any(item["uses_next_entry_bar"] for item in sources),
         uses_spread_or_slippage=any(item["uses_spread_or_slippage"] for item in sources),
+        uses_spread=any(item["uses_spread"] for item in sources),
+        uses_slippage=any(item["uses_slippage"] for item in sources),
         uses_post_entry_information=any(item["uses_post_entry_information"] for item in sources),
         exclusion_reason=timing_source.get("exclusion_reason"),
         reason="Maximum timing and leakage risk inherited from source fields.",
@@ -321,6 +346,8 @@ def is_verified_pretrade_low(entry: dict[str, Any]) -> bool:
         and entry.get("leakage_risk") == "low"
         and not entry.get("uses_next_entry_bar")
         and not entry.get("uses_spread_or_slippage")
+        and not entry.get("uses_spread")
+        and not entry.get("uses_slippage")
         and not entry.get("uses_post_entry_information")
     )
 
@@ -337,6 +364,9 @@ def build_feature_timing_provenance_report(records: list[dict[str, Any]] | None 
     inputs = records or []
     registry = copy.deepcopy(PROVENANCE_REGISTRY)
     normalized = {
+        name: get_field_provenance(name)
+        for name in ("risk_points", "reward_points")
+    } | {
         name: combine_source_provenance(name, [get_field_provenance(field) for field in fields])
         for name, fields in NORMALIZED_FIELD_SOURCES.items()
     }
