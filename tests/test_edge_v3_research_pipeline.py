@@ -358,6 +358,34 @@ def test_matrix_accepts_complete_predecision_dependency_chain():
     assert {"feature_a", "feature_b"}.issubset(result["predictors"])
 
 
+@pytest.mark.parametrize(
+    ("mutation", "cause"),
+    [
+        ("missing_slippage", "uses_slippage"),
+        ("invalid_spread", "uses_spread"),
+    ],
+)
+def test_matrix_contextualizes_transitive_dependency_contract_failures(mutation, cause):
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", ["feature_b"])
+    provenance["feature_b"] = _synthetic_provenance("feature_b", [])
+    if mutation == "missing_slippage":
+        provenance["feature_b"].pop("uses_slippage")
+    else:
+        provenance["feature_b"]["uses_spread"] = "false"
+
+    with pytest.raises(ValueError) as exc_info:
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a", "feature_b"), provenance=provenance
+        )
+
+    message = str(exc_info.value)
+    assert "feature_a" in message
+    assert "feature_a -> feature_b" in message
+    assert "feature_b" in message
+    assert cause in message
+
+
 def test_matrix_admits_expanded_strict_fields_but_keeps_exclusions(tmp_path):
     batch = tmp_path / "batch"
     _write_journal(batch / "run" / "journal" / "trades.jsonl", [_trade(1, 2)])
