@@ -66,6 +66,23 @@ def _matrix_records(count=80):
     ]
 
 
+def _synthetic_provenance(name, dependencies, **overrides):
+    return {
+        **_provenance()["atr"],
+        "field_name": name,
+        "source_module_or_function": "test fixture",
+        "depends_on_fields": list(dependencies),
+        **overrides,
+    }
+
+
+def _records_with_features(*features):
+    records = _matrix_records(2)
+    for record in records:
+        record.update({feature: 1.0 for feature in features})
+    return records
+
+
 def test_matrix_deduplicates_rejects_invalid_and_excludes_lqc_and_outcomes(tmp_path):
     batch = tmp_path / "batch"
     rows = _matrix_records(8)
@@ -223,6 +240,122 @@ def test_matrix_reports_predecision_cost_contradictions(field):
 
     with pytest.raises(ValueError, match=r"strict discovery timing contradiction for atr"):
         matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+
+
+@pytest.mark.parametrize(
+    ("dependency", "timing"),
+    [
+        ("risk_points", "at_entry"),
+        ("pnl", "post_trade"),
+        ("feature_post_entry", "post_entry"),
+    ],
+)
+def test_matrix_rejects_later_direct_provenance_dependencies(dependency, timing):
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", [dependency])
+    if dependency == "feature_post_entry":
+        provenance[dependency] = _synthetic_provenance(
+            dependency,
+            [],
+            availability_timing="post_entry",
+            strict_discovery_eligible=False,
+            uses_post_entry_information=True,
+        )
+
+    with pytest.raises(
+        ValueError,
+        match=rf"Feature 'feature_a'.*feature_a -> {dependency}.*'{timing}'",
+    ):
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a", dependency), provenance=provenance
+        )
+
+
+def test_matrix_rejects_transitive_later_provenance_dependency():
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", ["feature_b"])
+    provenance["feature_b"] = _synthetic_provenance("feature_b", ["risk_points"])
+
+    with pytest.raises(
+        ValueError,
+        match=r"Feature 'feature_a'.*feature_a -> feature_b -> risk_points.*'at_entry'",
+    ):
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a", "feature_b"), provenance=provenance
+        )
+
+
+def test_matrix_rejects_missing_and_unknown_provenance_dependencies():
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", ["missing_dependency"])
+
+    with pytest.raises(
+        ValueError,
+        match=r"Feature 'feature_a'.*feature_a -> missing_dependency.*unregistered",
+    ):
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a"), provenance=provenance
+        )
+
+
+def test_matrix_rejects_unknown_timing_and_ineligible_dependencies():
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", ["feature_b"])
+    provenance["feature_b"] = _synthetic_provenance(
+        "feature_b", [], availability_timing="unknown", strict_discovery_eligible=False
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"Feature 'feature_a'.*feature_a -> feature_b.*unknown",
+    ):
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a", "feature_b"), provenance=provenance
+        )
+
+    provenance["feature_b"] = _synthetic_provenance(
+        "feature_b", [], strict_discovery_eligible=False
+    )
+    with pytest.raises(
+        ValueError,
+        match=r"Feature 'feature_a'.*feature_a -> feature_b.*strict_discovery_eligible",
+    ):
+        matrix.build_matrix_from_records(
+            _records_with_features("feature_a", "feature_b"), provenance=provenance
+        )
+
+
+@pytest.mark.parametrize(
+    ("dependencies", "expected_cycle"),
+    [
+        ({"feature_a": ["feature_a"]}, "feature_a -> feature_a"),
+        (
+            {"feature_a": ["feature_b"], "feature_b": ["feature_a"]},
+            "feature_a -> feature_b -> feature_a",
+        ),
+    ],
+)
+def test_matrix_rejects_provenance_dependency_cycles(dependencies, expected_cycle):
+    provenance = _provenance()
+    for field, source_fields in dependencies.items():
+        provenance[field] = _synthetic_provenance(field, source_fields)
+
+    with pytest.raises(ValueError, match=rf"strict provenance dependency cycle: {expected_cycle}"):
+        matrix.build_matrix_from_records(
+            _records_with_features(*dependencies), provenance=provenance
+        )
+
+
+def test_matrix_accepts_complete_predecision_dependency_chain():
+    provenance = _provenance()
+    provenance["feature_a"] = _synthetic_provenance("feature_a", ["feature_b"])
+    provenance["feature_b"] = _synthetic_provenance("feature_b", [])
+
+    result = matrix.build_matrix_from_records(
+        _records_with_features("feature_a", "feature_b"), provenance=provenance
+    )
+
+    assert {"feature_a", "feature_b"}.issubset(result["predictors"])
 
 
 def test_matrix_admits_expanded_strict_fields_but_keeps_exclusions(tmp_path):
