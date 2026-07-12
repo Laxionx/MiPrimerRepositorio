@@ -13,7 +13,9 @@ from trading_bot.research.edge_v2_feature_separation import load_journal_records
 from trading_bot.research.edge_v2_feature_timing_provenance import (
     combine_source_provenance,
     get_field_provenance,
+    is_verified_pretrade_low,
     load_provenance_file,
+    strict_exclusion_reason,
 )
 
 
@@ -28,6 +30,10 @@ EXCLUDED_PREDICTORS = OUTCOME_FIELDS | {
     "candle_range_over_prior_range_points", "risk_points_over_candle_range",
     "reward_points_over_candle_range", "entry", "stop_loss", "take_profit",
     "planned_rr",
+    "spread", "spread_points", "spread_price", "point_size", "tick_size",
+    "slippage_points", "slippage_price", "entry_distance_from_sweep", "entry_score",
+    "context_score", "distance_to_h1_high", "distance_to_h1_low", "distance_to_h1_mid",
+    "extension_atr", "volatility",
 }
 DERIVED_SOURCES = {
     "reward_to_risk_planned": ("reward_points", "risk_points"),
@@ -99,8 +105,9 @@ def _load_unique_records(journals: list[Path]) -> tuple[list[dict[str, Any]], li
 def _build_matrix(
     records: list[dict[str, Any]], manifest: list[dict[str, Any]], provenance: dict[str, dict[str, Any]]
 ) -> dict[str, Any]:
-    base_predictors = _strict_predictors(records, provenance)
-    derived = _strict_derivatives(provenance)
+    base_predictors, excluded = _strict_predictors(records, provenance)
+    derived, derived_excluded = _strict_derivatives(provenance)
+    excluded.update(derived_excluded)
     predictors = sorted([*base_predictors, *derived])
     feature_provenance = {
         feature: _feature_provenance(feature, provenance) for feature in predictors
@@ -117,30 +124,53 @@ def _build_matrix(
         "accepted_journal_count": sum(item["accepted"] for item in manifest),
         "rejected_journal_count": sum(not item["accepted"] for item in manifest),
         "predictors": predictors,
+        "analyzed_feature_count": len(predictors),
         "labels": ["pnl", "outcome", "r_multiple"],
         "metrics_only_fields": sorted(OUTCOME_FIELDS),
         "excluded_predictors": sorted(EXCLUDED_PREDICTORS),
         "feature_provenance": feature_provenance,
+        "strict_excluded_features": excluded,
         "records": matrix_records,
         "disclaimer": "Research-only matrix; no strategy, execution, or rule output is produced.",
     }
 
 
-def _strict_predictors(records: list[dict[str, Any]], provenance: dict[str, dict[str, Any]]) -> list[str]:
+def _strict_predictors(
+    records: list[dict[str, Any]], provenance: dict[str, dict[str, Any]]
+) -> tuple[list[str], dict[str, dict[str, Any]]]:
     fields = sorted({key for row in records for key in row})
-    return [
-        field for field in fields
-        if field not in EXCLUDED_PREDICTORS | METADATA_FIELDS
-        and _is_strict(_feature_provenance(field, provenance))
-        and any(_number(row.get(field)) is not None for row in records)
-    ]
+    predictors, excluded = [], {}
+    for field in fields:
+        if field in METADATA_FIELDS or field.startswith("_"):
+            continue
+        numeric = any(_number(row.get(field)) is not None for row in records)
+        if field in EXCLUDED_PREDICTORS:
+            if field == "lower_quartile_closes":
+                excluded[field] = _excluded(field, _feature_provenance(field, provenance), "permanently_excluded")
+            continue
+        if not numeric:
+            continue
+        item = _feature_provenance(field, provenance)
+        _require_declared_provenance(field, item)
+        if _is_strict(item):
+            predictors.append(field)
+        else:
+            excluded[field] = _excluded(field, item, strict_exclusion_reason(item))
+    return predictors, excluded
 
 
-def _strict_derivatives(provenance: dict[str, dict[str, Any]]) -> dict[str, tuple[str, ...]]:
-    return {
-        name: sources for name, sources in DERIVED_SOURCES.items()
-        if _is_strict(_feature_provenance(name, provenance))
-    }
+def _strict_derivatives(
+    provenance: dict[str, dict[str, Any]]
+) -> tuple[dict[str, tuple[str, ...]], dict[str, dict[str, Any]]]:
+    derived, excluded = {}, {}
+    for name, sources in DERIVED_SOURCES.items():
+        item = _feature_provenance(name, provenance)
+        _require_declared_provenance(name, item)
+        if _is_strict(item):
+            derived[name] = sources
+        else:
+            excluded[name] = _excluded(name, item, strict_exclusion_reason(item))
+    return derived, excluded
 
 
 def _feature_provenance(feature: str, provenance: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -152,11 +182,27 @@ def _feature_provenance(feature: str, provenance: dict[str, dict[str, Any]]) -> 
 
 
 def _is_strict(entry: dict[str, Any]) -> bool:
-    return (
-        entry.get("source_basis") == "code_verified"
-        and entry.get("availability_timing") == "pre_trade"
-        and entry.get("leakage_risk") == "low"
+    return is_verified_pretrade_low(entry)
+
+
+def _require_declared_provenance(field: str, entry: dict[str, Any]) -> None:
+    required = (
+        "field_name", "availability_timing", "source_basis", "leakage_risk",
+        "source_timestamp", "strategy_decision_timestamp", "entry_timestamp",
+        "uses_setup_bar", "uses_next_entry_bar", "uses_spread_or_slippage",
+        "uses_post_entry_information",
     )
+    missing = [key for key in required if key not in entry]
+    if missing or entry.get("source_basis") == "unknown" or entry.get("availability_timing") == "unknown":
+        raise ValueError(f"strict discovery requires explicit provenance for {field}")
+    if entry["availability_timing"] == "pre_decision" and any(
+        entry[key] for key in ("uses_next_entry_bar", "uses_spread_or_slippage", "uses_post_entry_information")
+    ):
+        raise ValueError(f"strict discovery timing contradiction for {field}")
+
+
+def _excluded(field: str, entry: dict[str, Any], reason: str) -> dict[str, Any]:
+    return {"field_name": field, "availability_timing": entry.get("availability_timing"), "reason": reason, "provenance": entry}
 
 
 def _matrix_record(

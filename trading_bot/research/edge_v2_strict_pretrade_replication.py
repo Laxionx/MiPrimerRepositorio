@@ -159,28 +159,29 @@ def write_strict_pretrade_replication_report(report: dict[str, Any], output: str
 
 
 def _strict_policy(provenance: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    included, metadata = [], {}
+    included, excluded, metadata = [], {}, {}
     for field, sources in FIELD_SOURCES.items():
         entries = [get_field_provenance(source, provenance) for source in sources]
         item = entries[0] if len(entries) == 1 else combine_source_provenance(field, entries)
         metadata[field] = item
         if _is_strict(item):
             included.append(field)
-    excluded = {}
+        else:
+            excluded[field] = {"reason": _exclusion_reason(item), "provenance": item}
     for field in ("candle_range", "candle_range_over_prior_range_points", "candle_range_over_atr", "pnl", "r_multiple"):
         sources = ("candle_range", "prior_range_points") if field.endswith("prior_range_points") else ("candle_range", "atr") if field.endswith("_atr") else (field,)
         entries = [get_field_provenance(source, provenance) for source in sources]
         item = entries[0] if len(entries) == 1 else combine_source_provenance(field, entries)
         excluded[field] = {"reason": _exclusion_reason(item), "provenance": item}
-    return {"required": {"availability_timing": "pre_trade", "leakage_risk": "low", "source_basis": "code_verified"}, "included_fields": included, "excluded_fields": excluded, "field_provenance": metadata}
+    return {"required": {"availability_timing": "pre_decision", "leakage_risk": "low", "source_basis": "code_verified"}, "included_fields": included, "excluded_fields": excluded, "field_provenance": metadata}
 
 
 def _is_strict(item: dict[str, Any]) -> bool:
-    return all((item.get("availability_timing") == "pre_trade", item.get("leakage_risk") == "low", item.get("source_basis") == "code_verified"))
+    return all((item.get("availability_timing") == "pre_decision", item.get("leakage_risk") == "low", item.get("source_basis") == "code_verified", not item.get("uses_next_entry_bar"), not item.get("uses_spread_or_slippage"), not item.get("uses_post_entry_information")))
 
 
 def _exclusion_reason(item: dict[str, Any]) -> str:
-    return "requires code_verified/pre_trade/low; got " + "/".join(str(item.get(key)) for key in ("source_basis", "availability_timing", "leakage_risk"))
+    return "requires code_verified/pre_decision/low; got " + "/".join(str(item.get(key)) for key in ("source_basis", "availability_timing", "leakage_risk"))
 
 
 def _select_slice(records: list[dict[str, Any]], name: str) -> list[dict[str, Any]]:

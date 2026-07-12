@@ -126,8 +126,11 @@ def _symbol_timeframe_concentration(records: list[dict[str, Any]]) -> float:
 def _strict(provenance: dict[str, Any]) -> bool:
     return (
         provenance.get("source_basis") == "code_verified"
-        and provenance.get("availability_timing") == "pre_trade"
+        and provenance.get("availability_timing") == "pre_decision"
         and provenance.get("leakage_risk") == "low"
+        and not provenance.get("uses_next_entry_bar")
+        and not provenance.get("uses_spread_or_slippage")
+        and not provenance.get("uses_post_entry_information")
     )
 
 

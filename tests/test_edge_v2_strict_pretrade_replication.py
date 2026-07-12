@@ -43,10 +43,15 @@ def _write(path, records):
     path.write_text("\n".join(json.dumps(row) for row in records), encoding="utf-8")
 
 
-def test_strict_provenance_includes_only_verified_pretrade_low_fields():
+def test_strict_provenance_excludes_at_entry_effective_entry_fields():
     report = replication.analyze_strict_pretrade_records(_records(), provenance=_provenance())
 
-    assert report["strict_field_policy"]["included_fields"] == list(replication.STRICT_FIELDS)
+    assert report["strict_field_policy"]["included_fields"] == []
+    assert (
+        report["strict_field_policy"]["excluded_fields"]["risk_points"]
+        ["provenance"]["availability_timing"]
+        == "at_entry"
+    )
     assert "candle_range" in report["strict_field_policy"]["excluded_fields"]
     assert report["strict_field_policy"]["excluded_fields"]["candle_range"]["reason"]
     assert report["slices"]["lower_quartile_closes_eq_0"]["filtered_trade_count"] == 24
@@ -68,16 +73,7 @@ def test_fields_include_full_separation_rank_and_fixed_bins():
         _records(), provenance=_provenance()
     )["slices"]["lower_quartile_closes_eq_0"]["candidate_field_results"]
 
-    separation = field["risk_points"]["winner_loser_separation"]
-    assert set(replication.SEPARATION_KEYS).issubset(separation)
-    assert set(field["risk_points"]["rank_cohorts"]) == {"bottom_25", "middle_50", "top_25"}
-    assert set(field["reward_to_risk_planned"]["fixed_bins"]) == {
-        "lt_1", "1_to_lt_1_5", "1_5_to_lt_2", "gte_2"
-    }
-    assert set(field["risk_points_over_atr"]["fixed_bins"]) == {
-        "lte_0_5", "gt_0_5_to_lte_1", "gt_1_to_lte_2", "gt_2"
-    }
-    assert "payoff_ratio" in field["risk_points"]["rank_cohorts"]["bottom_25"]
+    assert field == {}
 
 
 def test_per_run_aggregate_and_calibration_holdout_use_second_half_only(tmp_path):
@@ -90,27 +86,19 @@ def test_per_run_aggregate_and_calibration_holdout_use_second_half_only(tmp_path
         [first, second], provenance=_provenance()
     )
     run = report["per_run"][0]
-    calibration = run["calibration_diagnostics"]["risk_points"]
-
     assert report["aggregate_replication_summary"]["successful_inputs"] == 2
     assert run["symbol"] == "XAUUSD"
-    assert calibration["calibration_trade_count"] == 12
-    assert calibration["test_trade_count"] == 12
-    assert calibration["threshold_used"] == 5.0
-    assert calibration["test_selected_trade_count"] == 6
+    assert run["calibration_diagnostics"] == {}
 
 
 def test_missing_provenance_empty_old_and_missing_fields_are_safe(tmp_path):
     with pytest.raises(ValueError, match="provenance"):
         replication.analyze_strict_pretrade_records(_records())
 
-    old = _records()[:2]
-    for row in old:
-        row.pop("atr")
-    report = replication.analyze_strict_pretrade_records(old, provenance=_provenance())
-    assert report["slices"]["lower_quartile_closes_eq_0"]["candidate_field_results"][
-        "risk_points_over_atr"
-    ]["availability"] == "unavailable"
+    report = replication.analyze_strict_pretrade_records(
+        _records()[:2], provenance=_provenance()
+    )
+    assert report["slices"]["lower_quartile_closes_eq_0"]["candidate_field_results"] == {}
 
     empty = tmp_path / "empty.jsonl"
     missing = tmp_path / "missing.jsonl"
