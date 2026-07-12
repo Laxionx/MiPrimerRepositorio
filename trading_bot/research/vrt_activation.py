@@ -14,6 +14,8 @@ from trading_bot.research import volatility_regime_transition as vrt
 PREREGISTRATION_COMMIT = "c635df3000c04c016801557e3427fb2e01a847c5"
 IMPLEMENTATION_MERGE_COMMIT = "807f79208c50043a8847f6d33f90e0c88076492d"
 REVIEWED_IMPLEMENTATION_HEAD = "e068ec01b52a21c92cb349189e0c0135c364453f"
+ACTIVATION_RECORD_CREATION_COMMIT = "91342b3a6b5957ad6f5d041c4b466ac866f00400"
+ACTIVATION_RECORD_CREATION_UTC = "2026-07-12T22:59:37Z"
 FAMILY_ID = "volatility-regime-transition-vrt-20260712-v1"
 PACKAGE_RELATIVE = Path("docs/research_preregistrations/next_family_selection_2026-07-12")
 MANIFEST_NAME = "preregistration_manifest.json"
@@ -159,6 +161,12 @@ def validate_activation_package(
     _expect(record.get("preregistration_merge_commit"), PREREGISTRATION_COMMIT, "preregistration commit")
     _expect(record.get("implementation_merge_commit"), IMPLEMENTATION_MERGE_COMMIT, "implementation commit")
     _expect(record.get("reviewed_implementation_head"), REVIEWED_IMPLEMENTATION_HEAD, "reviewed implementation head")
+    _expect(record.get("activation_record_commit"), ACTIVATION_RECORD_CREATION_COMMIT, "activation record commit")
+    _expect(record.get("committed_at_utc"), ACTIVATION_RECORD_CREATION_UTC, "activation record committed timestamp")
+    _expect(record.get("preregistration_manifest_path"), str(PACKAGE_RELATIVE / MANIFEST_NAME).replace("\\", "/"), "preregistration manifest path")
+    _expect(record.get("feature_provenance_path"), str(PACKAGE_RELATIVE / PROVENANCE_NAME).replace("\\", "/"), "feature provenance path")
+    _expect(record.get("detector_implementation_path"), str(IMPLEMENTATION_RELATIVE).replace("\\", "/"), "detector implementation path")
+    _expect(record.get("frozen_execution_configuration_path"), str(PACKAGE_RELATIVE / CONFIG_NAME).replace("\\", "/"), "execution configuration path")
     _expect(record.get("preregistration_manifest_sha256"), _sha256_file(manifest_path), "preregistration manifest hash")
     _expect(record.get("feature_provenance_sha256"), _sha256_file(provenance_path), "provenance hash")
     _expect(record.get("detector_implementation_sha256"), _sha256_file(implementation_path), "detector implementation hash")

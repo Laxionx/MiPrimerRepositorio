@@ -77,7 +77,7 @@ def test_detector_predictor_and_outcome_config_mismatches_fail_closed(tmp_path):
         vrt_activation.validate_activation_package(ROOT, execution_config_path=config_path)
 
     config = _json(CONFIG)
-    config["feature_registry"]["discovery_matrix"] = ["efficiency_20"]
+    config["strict_predictors"]["names"] = ["efficiency_20"]
     _write_json(config_path, config)
     with pytest.raises(vrt_activation.ActivationConformanceError, match="strict predictor"):
         vrt_activation.validate_activation_package(ROOT, execution_config_path=config_path)
@@ -114,7 +114,7 @@ def test_activation_timestamp_before_or_at_commit_fails_closed(tmp_path, timesta
     record_path = _prepared_record(tmp_path)
     record = _json(record_path)
     record["status"] = "activation_requirements_complete"
-    record["committed_at_utc"] = "2026-07-12T00:00:00Z"
+    record["committed_at_utc"] = vrt_activation.ACTIVATION_RECORD_CREATION_UTC
     record["prospective_activation_at_utc"] = timestamp
     _write_json(record_path, record)
 
