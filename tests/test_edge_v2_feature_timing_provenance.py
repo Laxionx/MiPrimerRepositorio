@@ -23,6 +23,16 @@ EXPANDED_STRICT_FIELDS = {
     "average_pullback_depth",
 }
 
+AT_ENTRY_RISK_REWARD_FIELDS = {
+    "risk_points": ("effective entry", "stop_loss"),
+    "reward_points": ("effective entry", "take_profit"),
+    "reward_to_risk_planned": ("reward_points", "risk_points"),
+    "risk_points_over_atr": ("risk_points", "atr"),
+    "reward_points_over_atr": ("reward_points", "atr"),
+    "risk_points_over_prior_range_points": ("risk_points", "prior_range_points"),
+    "reward_points_over_prior_range_points": ("reward_points", "prior_range_points"),
+}
+
 
 def _trade(trade_id, pnl, **values):
     return {
@@ -87,6 +97,29 @@ def test_normalized_fields_inherit_worst_source_provenance():
     assert combined["availability_timing"] == "post_trade"
     assert combined["leakage_risk"] == "high"
     assert combined["source_fields"] == ["risk_points", "pnl"]
+
+
+def test_report_has_complete_at_entry_risk_reward_provenance():
+    report = provenance.build_feature_timing_provenance_report()
+    normalized = report["normalized_field_provenance"]
+
+    assert set(AT_ENTRY_RISK_REWARD_FIELDS).issubset(normalized)
+    for field, dependencies in AT_ENTRY_RISK_REWARD_FIELDS.items():
+        entry = normalized[field]
+        reported_dependencies = entry.get("source_fields", entry["depends_on_fields"])
+
+        assert tuple(reported_dependencies) == dependencies
+        assert entry["availability_timing"] == "at_entry"
+        assert entry["source_module_or_function"]
+        assert entry["source_timestamp"] == "next_entry_bar_open"
+        assert entry["strategy_decision_timestamp"] == "completed_setup_bar"
+        assert entry["entry_timestamp"] == "next_entry_bar_open"
+        assert entry["uses_next_entry_bar"] is True
+        assert entry["uses_spread"] is True
+        assert entry["uses_slippage"] is True
+        assert entry["uses_spread_or_slippage"] is True
+        assert entry["strict_discovery_eligible"] is False
+        assert entry["exclusion_reason"]
 
 
 def test_report_supports_journals_and_exposes_required_lists(tmp_path):
