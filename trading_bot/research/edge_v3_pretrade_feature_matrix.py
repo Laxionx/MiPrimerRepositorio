@@ -318,9 +318,16 @@ def _validate_dependency_graph(
         if not _is_registered_provenance_field(dependency, provenance):
             raise _dependency_error(root, dependency_path, "contains unregistered dependency")
         dependency_entry = _resolve_dependency_entry(dependency, provenance)
-        _validate_provenance_contract(
-            dependency, dependency_entry, root=root, path=dependency_path
-        )
+        try:
+            _validate_provenance_contract(
+                dependency, dependency_entry, root=root, path=dependency_path
+            )
+        except ValueError as exc:
+            raise _dependency_error(
+                root,
+                dependency_path,
+                f"dependency contract validation failed: {exc}",
+            ) from exc
         timing = dependency_entry["availability_timing"]
         if timing != "pre_decision":
             raise _dependency_error(root, dependency_path, f"reaches timing '{timing}'")
