@@ -10,6 +10,15 @@
                               "destination_file_count":  76,
                               "all_sha256_match":  true
                           },
+    "closure_package_verification":  {
+                                        "source_root":  "docs\\research_closures\\liquidity_sweep_2026-07-12",
+                                        "durable_destination":  "C:\\Users\\USER\\Documents\\Codex\\ResearchEvidence\\mt5-algorithmic-lab\\liquidity-sweep-closure-20260712\\closure_package",
+                                        "README.md":  {
+                                                          "source_sha256":  "7bb6975d66d8d5213044c0ff00d0293f0771bf1382ef67fb9571fe4232de1fec",
+                                                          "destination_sha256":  "7bb6975d66d8d5213044c0ff00d0293f0771bf1382ef67fb9571fe4232de1fec",
+                                                          "destination_match":  true
+                                                      }
+                                    },
     "expected_artifact_inventory":  {
                                         "mt5_history_manifests":  {
                                                                       "present":  9,

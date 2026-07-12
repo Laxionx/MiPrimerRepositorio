@@ -52,10 +52,15 @@ All 10 had strict provenance and sufficient scorecard sample support, but all fa
 the mandatory temporal `non_negative` condition. Each was rejected for
 `negative_test_performance`; none passed every gate.
 
-The following stayed excluded: the seven effective-entry `at_entry` metrics;
-`lower_quartile_closes`; outcomes; PnL and R fields; MFE/MAE; post-entry and
-post-trade fields; and unknown-timing fields including `sweep_depth` and
-`reclaim_speed`.
+The following stayed excluded: the seven effective-entry `at_entry` metrics:
+`risk_points`, `reward_points`, `reward_to_risk_planned`,
+`risk_points_over_atr`, `reward_points_over_atr`,
+`risk_points_over_prior_range_points`, and
+`reward_points_over_prior_range_points`. They depend on the effective next-bar
+entry, including spread and slippage, and therefore are not strict
+`pre_decision` predictors. `lower_quartile_closes`; outcomes; PnL and R fields;
+MFE/MAE; post-entry and post-trade fields; and unknown-timing fields including
+`sweep_depth` and `reclaim_speed` also remained excluded.
 
 - Candidate Discriminator Hypotheses: none.
 - Candidate Rule Report: not created.
@@ -66,11 +71,20 @@ Positive global effects and near-passes do not override a failed mandatory gate.
 
 ## Boundary after closure
 
+`CLOSED` applies only to the tested Liquidity Sweep research family under its fixed
+detector; symbol/timeframe universe; historical period; transaction-cost model;
+execution assumptions; strict provenance and feature-eligibility contract; temporal
+split; mandatory gates; and Edge V3 evaluation policy.
+
+This result does not universally disprove every current or future strategy that may
+use liquidity-sweep concepts. Any future liquidity-concept hypothesis must be
+declared as a separate research family before examining results, with its universe,
+detector, features, and evaluation policy defined in advance. It must not reuse this
+closed experiment for post-hoc tuning, rescue, or selective reinterpretation.
+
 The rejected results must not be reused to tune thresholds, instruments, timeframes,
-gates, feature combinations, stop-loss, or take-profit behavior. Any future research
-must start as a separately declared strategy family or hypothesis with its universe,
-features, and evaluation policy fixed before results are examined. It must not be
-presented as a rescue or continuation of this closed Liquidity Sweep family.
+gates, feature combinations, stop-loss, or take-profit behavior, or be presented as
+a rescue or continuation of this closed Liquidity Sweep family.
 
 ## Evidence
 
