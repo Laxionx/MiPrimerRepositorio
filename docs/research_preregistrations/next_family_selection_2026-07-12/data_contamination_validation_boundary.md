@@ -40,3 +40,12 @@ cannot support this family. The entire known-used interval above remains contami
 despite detector independence. Any result there is development or internal-validation
 evidence only and can create at most a Candidate Discriminator Hypothesis. A confirmed
 edge requires unchanged, post-activation independent prospective evidence.
+
+The current fields with prior-inspection or conceptual-overlap status are
+`atr_14_points`, `atr_56_points`, `atr_ratio_14_56`, `atr_ratio_change_8`,
+`mean_range_8_points`, `mean_range_56_points`, and `range_ratio_8_56`. The first two
+are ATR instances; the ratio/change and range fields are conceptually related to the
+previously inspected contraction/compression concepts, but do not reuse their prior
+values, segments, effects, or parameter selection. `efficiency_20` has no identified
+prior Liquidity Sweep feature counterpart. This mapping is a contamination disclosure,
+not evidence that any field is promising or reusable.

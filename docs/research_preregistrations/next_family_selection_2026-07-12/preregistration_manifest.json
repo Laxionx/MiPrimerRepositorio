@@ -34,6 +34,8 @@
     "known_used_roles": ["development", "internal_validation"],
     "independent_confirmation_permitted": false,
     "prior_inspected_concepts": ["atr", "atr_contraction_pct", "compression_score", "related_atr_range_concepts"],
+    "current_fields_with_prior_inspection_or_conceptual_overlap": ["atr_14_points", "atr_56_points", "atr_ratio_14_56", "atr_ratio_change_8", "mean_range_8_points", "mean_range_56_points", "range_ratio_8_56"],
+    "current_fields_without_identified_prior_liquidity_sweep_counterpart": ["efficiency_20"],
     "inclusion_basis": "preregistered_volatility_mechanism_only",
     "prior_liquidity_sweep_effects_may_motivate_parameters": false,
     "contaminated_success_conclusion": "candidate_discriminator_hypothesis_only"
