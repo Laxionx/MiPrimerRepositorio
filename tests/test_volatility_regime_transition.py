@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import json
 from datetime import UTC, datetime, timedelta
 
@@ -119,6 +118,15 @@ def test_missing_and_gap_reset_the_stream_and_require_new_warmup():
 
     assert result["events"] == []
     assert {item["reason"] for item in result["audit"]["stream_resets"]} >= {"invalid_input", "gap"}
+
+
+def test_missing_value_resets_prior_history_before_a_later_transition():
+    bars = _bars(count=66, expanded_indexes={65})
+    bars[20]["close_bid"] = None
+
+    result = vrt.generate_events(bars)
+
+    assert result["events"] == []
 
 
 def test_duplicate_suppression_keeps_first_canonical_event():
