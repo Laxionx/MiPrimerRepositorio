@@ -153,6 +153,22 @@ def test_matrix_fails_closed_for_predecision_timing_contradiction():
         raise AssertionError("strict matrix accepted contradictory pre-decision provenance")
 
 
+def test_matrix_fails_closed_for_predecision_spread_dependency():
+    provenance = _provenance()
+    provenance["atr"] = {
+        **provenance["atr"],
+        "uses_spread": True,
+        "uses_spread_or_slippage": False,
+    }
+
+    try:
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+    except ValueError as exc:
+        assert "timing contradiction" in str(exc)
+    else:
+        raise AssertionError("strict matrix accepted a spread-dependent pre-decision field")
+
+
 def test_matrix_admits_expanded_strict_fields_but_keeps_exclusions(tmp_path):
     batch = tmp_path / "batch"
     _write_journal(batch / "run" / "journal" / "trades.jsonl", [_trade(1, 2)])
