@@ -280,3 +280,22 @@ def test_future_activation_and_observation_schemas_match_preregistration_policy(
     assert "input_artifact_hashes" in observation["required_fields"]
     assert observation["observation_permitted"] is False
     assert not {"order", "trade", "broker", "mt5", "execute"} & set(activation)
+
+
+@pytest.mark.parametrize("scenario", ["threshold", "gap", "missing", "multi_stream"])
+def test_incremental_detector_is_bitwise_equivalent_to_reference(scenario):
+    bars = _bars(count=130, expanded_indexes={64, 100})
+    if scenario == "gap":
+        bars[70]["timestamp_utc"] = bars[69]["timestamp_utc"] + timedelta(hours=1)
+    elif scenario == "missing":
+        bars[70]["close_bid"] = None
+    elif scenario == "multi_stream":
+        bars += _bars(count=130, expanded_indexes={64, 100}, symbol="EURUSD", timeframe="M15")
+    elif scenario == "threshold":
+        assert vrt.classify_regime(1.20) is vrt.RegimeState.ABOVE
+
+    reference = vrt.generate_events_reference(bars)
+    optimized = vrt.generate_events(bars)
+
+    assert optimized["events"] == reference["events"]
+    assert optimized["audit"] == reference["audit"]
