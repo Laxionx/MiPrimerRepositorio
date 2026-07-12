@@ -24,6 +24,7 @@ def _bar(index: int, *, range_size: float = 1.0, close: float | None = None, sym
         "close_bid": closing,
         "spread_points": 10.0,
         "point_size": 0.01,
+        "is_completed": True,
     }
 
 
@@ -56,6 +57,20 @@ def test_manifest_missing_or_changed_parameter_fails_closed(tmp_path):
     with pytest.raises(vrt.ManifestConformanceError, match="threshold"):
         vrt.validate_preregistration_conformance(path)
 
+    manifest = vrt.load_preregistration_manifest()
+    manifest["detector"]["gap_rule"] = "silently_ignore_gaps"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(vrt.ManifestConformanceError, match="gap"):
+        vrt.validate_preregistration_conformance(path)
+
+    manifest = vrt.load_preregistration_manifest()
+    for field in manifest["feature_registry"]["derived"]:
+        if field["name"] == "atr_14_points":
+            field["depends_on_fields"] = ["high_bid"]
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(vrt.ManifestConformanceError, match="atr_14_points"):
+        vrt.validate_preregistration_conformance(path)
+
     path.write_text("{}", encoding="utf-8")
     with pytest.raises(vrt.ManifestConformanceError):
         vrt.validate_preregistration_conformance(path)
@@ -82,7 +97,7 @@ def test_valid_transition_is_confirmed_on_same_completed_bar():
     assert len(result["events"]) == 1
     event = result["events"][0]
     assert event["transition_type"] == "below_to_above"
-    assert event["decision_timestamp_utc"] == "2026-07-01T05:20:00Z"
+    assert event["decision_timestamp_utc"] == "2026-07-01T05:25:00Z"
     assert event["direction"] == "long"
     assert event["terminal_category"] == "raw"
 
@@ -129,6 +144,44 @@ def test_missing_value_resets_prior_history_before_a_later_transition():
     assert result["events"] == []
 
 
+@pytest.mark.parametrize(
+    ("replacement_timestamp", "reason"),
+    [
+        (lambda bars: bars[19]["timestamp_utc"], "duplicate_timestamp"),
+        (lambda bars: bars[18]["timestamp_utc"], "non_monotonic_timestamp"),
+    ],
+)
+def test_duplicate_and_non_monotonic_bars_reset_before_warmup(replacement_timestamp, reason):
+    bars = _bars(expanded_indexes={64})
+    bars[20]["timestamp_utc"] = replacement_timestamp(bars)
+
+    result = vrt.generate_events(bars)
+
+    assert result["events"] == []
+    assert reason in {item["reason"] for item in result["audit"]["stream_resets"]}
+
+
+def test_rejects_a_partial_bar_and_does_not_emit_from_it():
+    bars = _bars(expanded_indexes={64})
+    bars[64]["is_completed"] = False
+
+    result = vrt.generate_events(bars)
+
+    assert result["events"] == []
+    assert result["audit"]["stream_resets"][-1]["reason"] == "invalid_input"
+
+
+def test_non_positive_atr_denominator_is_unavailable_and_fails_closed():
+    bars = _bars()
+    for bar in bars:
+        bar.update({"open_bid": 100.0, "high_bid": 100.0, "low_bid": 100.0, "close_bid": 100.0})
+
+    result = vrt.generate_events(bars)
+
+    assert result["events"] == []
+    assert "unavailable_ratio" in {item["reason"] for item in result["audit"]["stream_resets"]}
+
+
 def test_duplicate_suppression_keeps_first_canonical_event():
     event = {
         "event_id": "same", "source_index": 2, "symbol": "XAUUSD", "timeframe": "M5",
@@ -173,6 +226,25 @@ def test_event_ids_are_canonical_and_deterministic():
     assert event["event_id"] != vrt.make_event(
         symbol="XAUUSD", timeframe="M5", decision_timestamp=BASE, direction="short", source_index=0
     )["event_id"]
+    identity_variants = [
+        {"symbol": "EURUSD"},
+        {"timeframe": "M15"},
+        {"decision_timestamp": BASE + timedelta(minutes=5)},
+        {"direction": "none"},
+    ]
+    ids = {event["event_id"]}
+    for variant in identity_variants:
+        ids.add(vrt.make_event(
+            symbol=variant.get("symbol", "XAUUSD"),
+            timeframe=variant.get("timeframe", "M5"),
+            decision_timestamp=variant.get("decision_timestamp", BASE),
+            direction=variant.get("direction", "long"),
+            source_index=99,
+        )["event_id"])
+    assert len(ids) == 5
+    assert event["event_id"] == vrt.make_event(
+        symbol="XAUUSD", timeframe="M5", decision_timestamp=BASE.astimezone(UTC), direction="long", source_index=12
+    )["event_id"]
 
 
 def test_strict_provenance_rejects_late_unknown_or_unregistered_dependencies():
@@ -203,5 +275,8 @@ def test_future_activation_and_observation_schemas_match_preregistration_policy(
 
     assert activation["schema_version"] == "vrt_activation_record.v1"
     assert "activation_timestamp_utc" in activation["required_fields"]
+    assert activation["activation_permitted"] is False
     assert observation["schema_version"] == "vrt_observation_record.v1"
     assert "input_artifact_hashes" in observation["required_fields"]
+    assert observation["observation_permitted"] is False
+    assert not {"order", "trade", "broker", "mt5", "execute"} & set(activation)

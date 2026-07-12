@@ -39,6 +39,43 @@ EXPECTED_CONFIG = {
     "cooldown_bars": 0,
     "gap_multiplier": 3,
 }
+EXPECTED_DETECTOR_SEMANTICS = {
+    "decision_timestamp": "utc_close_timestamp_of_completed_bar_t",
+    "ratio": "atr_14_points/atr_56_points",
+    "true_range": "max(high_t-low_t,abs(high_t-close_t_minus_1),abs(low_t-close_t_minus_1))",
+    "initial_state": "after_64_contiguous_valid_completed_bars_initialize_to_below_or_above_without_event",
+    "states": {
+        "above": "ratio_gte_1_20",
+        "below": "ratio_lt_1_20",
+        "unavailable": "invalid_missing_duplicate_nonmonotonic_or_gapped_stream_or_warmup",
+    },
+    "gap_rule": "timestamp_delta_gt_three_nominal_timeframe_durations_resets_to_unavailable",
+    "transition_start_and_confirmation": "same_completed_bar_prior_state_below_and_ratio_gte_1_20",
+    "transition_end_reset_rearm": "first_subsequent_eligible_ratio_lt_1_20_sets_below_and_rearms",
+    "duplicate_suppression": "retain_first_canonical_id_in_ascending_source_row_order",
+    "overlap_policy": "raw_event_stream_retained; outcome_can_mark_suppressed_overlap",
+    "stream_isolation": "independent_per_symbol_and_timeframe",
+    "ordering": ["decision_timestamp_utc", "symbol", "timeframe", "event_id"],
+    "direction": {
+        "long": "close_t_gt_close_t_minus_8",
+        "short": "close_t_lt_close_t_minus_8",
+        "equality": "raw_event_direction_none_terminal_no_direction",
+    },
+    "event_identity": {
+        "preimage": "family_id|preregistration_version|symbol|timeframe|decision_timestamp_utc|below_to_above|direction|atr14=14|atr56=56|threshold=1.20|warmup=64",
+        "algorithm": "sha256_utf8_lowercase_hex",
+    },
+}
+EXPECTED_STRICT_FEATURES = {
+    "atr_14_points": ("detector_input_and_discovery_predictor", "float64", True, "pre_decision", ("true_range_points",), "price"),
+    "atr_56_points": ("detector_input_and_discovery_predictor", "float64", True, "pre_decision", ("true_range_points",), "price"),
+    "atr_ratio_14_56": ("detector_input_and_discovery_predictor", "float64", True, "pre_decision", ("atr_14_points", "atr_56_points"), "dimensionless"),
+    "atr_ratio_change_8": ("discovery_predictor", "float64", True, "pre_decision", ("atr_ratio_14_56",), "dimensionless"),
+    "mean_range_8_points": ("discovery_predictor", "float64", True, "pre_decision", ("high_bid", "low_bid"), "price"),
+    "mean_range_56_points": ("discovery_predictor", "float64", True, "pre_decision", ("high_bid", "low_bid"), "price"),
+    "range_ratio_8_56": ("discovery_predictor", "float64", True, "pre_decision", ("mean_range_8_points", "mean_range_56_points"), "dimensionless"),
+    "efficiency_20": ("discovery_predictor", "float64", True, "pre_decision", ("close_bid",), "ratio_0_to_1"),
+}
 
 
 class ManifestConformanceError(ValueError):
@@ -116,10 +153,35 @@ def validate_preregistration_conformance(path: str | Path | None = None) -> dict
             raise ManifestConformanceError(
                 f"frozen implementation {name}={expected!r} differs from manifest {actual[name]!r}"
             )
-    if detector.get("transition_start_and_confirmation") != "same_completed_bar_prior_state_below_and_ratio_gte_1_20":
-        raise ManifestConformanceError("transition confirmation semantics differ from manifest")
-    if detector.get("transition_end_reset_rearm") != "first_subsequent_eligible_ratio_lt_1_20_sets_below_and_rearms":
-        raise ManifestConformanceError("reset/re-arming semantics differ from manifest")
+    for name, expected in EXPECTED_DETECTOR_SEMANTICS.items():
+        if detector.get(name) != expected:
+            raise ManifestConformanceError(f"{name} semantics differ from frozen implementation")
+    if detector.get("threshold") != {"value": 1.2, "unit": "dimensionless", "above_operator": ">=", "below_operator": "<"}:
+        raise ManifestConformanceError("threshold semantics differ from frozen implementation")
+    if detector.get("atr") != {
+        "fast_period": 14, "slow_period": 56, "method": "wilder",
+        "initialization": "arithmetic_mean_of_first_n_true_ranges",
+        "recurrence": "((n-1)*atr_previous+tr_current)/n",
+    }:
+        raise ManifestConformanceError("ATR semantics differ from frozen implementation")
+    if detector.get("input_fields") != [
+        "timestamp_utc", "symbol", "timeframe", "open_bid", "high_bid", "low_bid", "close_bid", "spread_points", "point_size",
+    ]:
+        raise ManifestConformanceError("detector input fields differ from frozen implementation")
+    feature_registry = _require(manifest, "feature_registry", "manifest")
+    if not isinstance(feature_registry, dict):
+        raise ManifestConformanceError("feature_registry must be an object")
+    if feature_registry.get("common_missing_policy") != "unavailable_fail_closed_no_imputation":
+        raise ManifestConformanceError("missing-value policy differs from frozen implementation")
+    derived = {item.get("name"): item for item in feature_registry.get("derived", []) if isinstance(item, dict)}
+    for name, expected in EXPECTED_STRICT_FEATURES.items():
+        entry = derived.get(name)
+        actual_feature = None if entry is None else (
+            entry.get("role"), entry.get("type"), entry.get("nullable"), entry.get("timing"),
+            tuple(entry.get("depends_on_fields", ())), entry.get("unit"),
+        )
+        if actual_feature != expected or entry.get("strict_eligibility") is not True:
+            raise ManifestConformanceError(f"strict predictor {name} differs from frozen implementation")
     registry = build_feature_registry(manifest)
     strict = validate_strict_eligibility(registry, manifest)
     source_bytes = manifest_path.read_bytes()
@@ -250,6 +312,8 @@ def _normalise_bar(raw: Mapping[str, Any]) -> dict[str, Any]:
     required = ("timestamp_utc", "symbol", "timeframe", "open_bid", "high_bid", "low_bid", "close_bid", "spread_points", "point_size")
     if any(key not in raw for key in required):
         raise ValueError("missing required bar field")
+    if raw.get("is_completed") is not True:
+        raise ValueError("bar is not confirmed completed")
     timestamp = _timestamp(raw["timestamp_utc"])
     symbol = raw["symbol"]
     timeframe = raw["timeframe"]
@@ -475,7 +539,8 @@ def generate_events(
         raw_events.append(
             make_event(
                 symbol=bar["symbol"], timeframe=bar["timeframe"],
-                decision_timestamp=bar["timestamp"], direction=direction, source_index=source_index,
+                decision_timestamp=bar["timestamp"] + _timeframe_duration(bar["timeframe"]),
+                direction=direction, source_index=source_index,
             )
         )
     kept, suppressed = suppress_duplicate_events(raw_events)
