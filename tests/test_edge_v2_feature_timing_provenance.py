@@ -49,10 +49,13 @@ def test_registry_contains_complete_explicit_entries():
 
 
 def test_code_verified_and_unknown_and_outcome_classifications():
-    assert provenance.get_field_provenance("risk_points")["availability_timing"] == "pre_trade"
-    assert provenance.get_field_provenance("risk_points")["leakage_risk"] == "low"
-    assert provenance.get_field_provenance("reward_points")["availability_timing"] == "pre_trade"
-    assert provenance.get_field_provenance("atr")["availability_timing"] == "pre_trade"
+    risk = provenance.get_field_provenance("risk_points")
+    reward = provenance.get_field_provenance("reward_points")
+    assert risk["availability_timing"] == "at_entry"
+    assert risk["uses_next_entry_bar"] is True
+    assert risk["uses_spread_or_slippage"] is True
+    assert reward["availability_timing"] == "at_entry"
+    assert provenance.get_field_provenance("atr")["availability_timing"] == "pre_decision"
     assert provenance.get_field_provenance("candle_range")["availability_timing"] == "at_entry"
     assert provenance.get_field_provenance("sweep_depth")["availability_timing"] == "unknown"
     for field in ("pnl", "r_multiple", "outcome", "exit_price"):
@@ -66,7 +69,7 @@ def test_expanded_edge_v3_fields_are_code_verified_strict_pretrade():
         entry = provenance.get_field_provenance(field)
 
         assert entry["source_basis"] == "code_verified"
-        assert entry["availability_timing"] == "pre_trade"
+        assert entry["availability_timing"] == "pre_decision"
         assert entry["leakage_risk"] == "low"
         assert entry["source_module_or_function"]
         assert entry["depends_on_fields"]
@@ -93,7 +96,7 @@ def test_report_supports_journals_and_exposes_required_lists(tmp_path):
 
     assert report["inputs_analyzed"] == 1
     assert "risk_points" in report["fields_seen"]
-    assert "risk_points" in report["low_leakage_pre_trade_fields"]
+    assert "risk_points" not in report["low_leakage_pre_decision_fields"]
     assert "sweep_depth" in report["unknown_timing_fields"]
     assert "pnl" in report["post_trade_or_high_leakage_fields"]
     assert "risk_points_over_prior_range_points" in report["candidate_discriminator_provenance"]
@@ -114,8 +117,18 @@ def test_candidate_audit_stays_conservative_without_file_and_strict_uses_report(
 
     allowed = set(strict["strict_pretrade_filter"]["allowed_fields"])
     excluded = {item["field"] for item in strict["strict_pretrade_filter"]["excluded_fields"]}
-    assert {"risk_points", "reward_points", "reward_to_risk_planned"}.issubset(allowed)
-    assert {"candle_range", "risk_points_over_candle_range"}.issubset(excluded)
+    assert "risk_points" not in allowed
+    assert {"risk_points", "reward_points", "reward_to_risk_planned", "candle_range"}.issubset(excluded)
+
+
+def test_at_entry_risk_distances_cannot_be_strict_predecision():
+    entry = provenance.get_field_provenance("risk_points")
+
+    assert entry["source_timestamp"] == "next_entry_bar_open"
+    assert entry["strategy_decision_timestamp"] == "completed_setup_bar"
+    assert entry["entry_timestamp"] == "next_entry_bar_open"
+    assert provenance.is_verified_pretrade_low(entry) is False
+    assert "next_entry_bar" in provenance.strict_exclusion_reason(entry)
 
 
 def test_missing_provenance_old_journal_and_no_execution_path(tmp_path):

@@ -91,10 +91,37 @@ def test_matrix_adds_only_strict_deterministic_derivatives(tmp_path):
 
     result = matrix.build_pretrade_feature_matrix([batch], provenance=_provenance())
 
-    assert "reward_to_risk_planned" in result["predictors"]
-    assert "risk_points_over_atr" in result["predictors"]
+    assert "reward_to_risk_planned" not in result["predictors"]
+    assert "risk_points_over_atr" not in result["predictors"]
     assert "risk_points_over_candle_range" not in result["predictors"]
-    assert result["records"][0]["predictors"]["reward_to_risk_planned"] == 4
+    assert result["strict_excluded_features"]["risk_points"]["availability_timing"] == "at_entry"
+
+
+def test_matrix_contains_exactly_ten_predecision_predictors(tmp_path):
+    batch = tmp_path / "batch"
+    _write_journal(batch / "run" / "journal" / "trades.jsonl", [_trade(1, 2)])
+
+    result = matrix.build_pretrade_feature_matrix([batch], provenance=_provenance())
+
+    assert result["predictors"] == [
+        "atr", "atr_contraction_pct", "average_pullback_depth", "compression_score",
+        "pressure_score", "price_position_in_range", "prior_range_points",
+        "range_duration_bars", "recent_range_points", "upper_quartile_closes",
+    ]
+    assert not {"risk_points", "reward_points", "reward_to_risk_planned", "risk_points_over_atr", "reward_points_over_atr", "risk_points_over_prior_range_points", "reward_points_over_prior_range_points"} & set(result["predictors"])
+
+
+def test_matrix_fails_closed_for_numeric_field_without_provenance():
+    records = _matrix_records(2)
+    for record in records:
+        record["unregistered_numeric"] = 1.0
+
+    try:
+        matrix.build_matrix_from_records(records, provenance=_provenance())
+    except ValueError as exc:
+        assert "unregistered_numeric" in str(exc)
+    else:
+        raise AssertionError("strict matrix accepted a numeric field without provenance")
 
 
 def test_matrix_admits_expanded_strict_fields_but_keeps_exclusions(tmp_path):
@@ -165,7 +192,7 @@ def test_discovery_has_non_overlapping_cohorts_and_no_lqc_predictor():
 
     report = discovery.discover_pretrade_discriminators(matrix_data)
 
-    feature = report["features"]["risk_points"]
+    feature = report["features"]["atr"]
     cohort_ids = [
         set(item["record_ids"])
         for item in feature["global"]["cohorts"].values()
@@ -182,7 +209,7 @@ def test_temporal_split_is_deterministic_and_warns_for_small_cohorts():
     first = temporal.audit_temporal_train_test(matrix_data, discovery_data)
     second = temporal.audit_temporal_train_test(matrix_data, discovery_data)
 
-    first_feature = first["segments"]["global"][0]["features"]["risk_points"]
+    first_feature = first["segments"]["global"][0]["features"]["atr"]
     assert first == second
     assert first_feature["train_trade_count"] == 6
     assert first_feature["test_trade_count"] == 6
@@ -194,7 +221,7 @@ def test_temporal_split_is_deterministic_and_warns_for_small_cohorts():
 def test_scorecard_rejects_freezes_and_promotes_by_gates():
     reject = scorecard.score_feature(
         "lower_quartile_closes",
-        provenance={"availability_timing": "pre_trade", "leakage_risk": "low", "source_basis": "code_verified"},
+        provenance={"availability_timing": "pre_decision", "leakage_risk": "low", "source_basis": "code_verified"},
         sample={"count": 200, "winner_count": 80, "loser_count": 120},
         sign_summary={"positive": 3, "negative": 0},
         temporal_summary={"sufficient": True, "non_negative": True},
@@ -203,7 +230,7 @@ def test_scorecard_rejects_freezes_and_promotes_by_gates():
     )
     frozen = scorecard.score_feature(
         "risk_points",
-        provenance={"availability_timing": "pre_trade", "leakage_risk": "low", "source_basis": "code_verified"},
+        provenance={"availability_timing": "at_entry", "leakage_risk": "medium", "source_basis": "code_verified"},
         sample={"count": 200, "winner_count": 80, "loser_count": 120},
         sign_summary={"positive": 2, "negative": 1},
         temporal_summary={"sufficient": True, "non_negative": True},
@@ -211,8 +238,8 @@ def test_scorecard_rejects_freezes_and_promotes_by_gates():
         outlier_conflict=False,
     )
     promote = scorecard.score_feature(
-        "reward_points",
-        provenance={"availability_timing": "pre_trade", "leakage_risk": "low", "source_basis": "code_verified"},
+        "atr",
+        provenance={"availability_timing": "pre_decision", "leakage_risk": "low", "source_basis": "code_verified"},
         sample={"count": 200, "winner_count": 80, "loser_count": 120},
         sign_summary={"positive": 3, "negative": 0},
         temporal_summary={"sufficient": True, "non_negative": True},
@@ -221,7 +248,7 @@ def test_scorecard_rejects_freezes_and_promotes_by_gates():
     )
     concentrated = scorecard.score_feature(
         "pressure_score",
-        provenance={"availability_timing": "pre_trade", "leakage_risk": "low", "source_basis": "code_verified"},
+        provenance={"availability_timing": "pre_decision", "leakage_risk": "low", "source_basis": "code_verified"},
         sample={"count": 200, "winner_count": 80, "loser_count": 120},
         sign_summary={"positive": 3, "negative": 0},
         temporal_summary={"sufficient": True, "non_negative": True},
@@ -230,7 +257,7 @@ def test_scorecard_rejects_freezes_and_promotes_by_gates():
     )
 
     assert reject["decision"] == "rejected"
-    assert frozen["decision"] == "frozen"
+    assert frozen["decision"] == "rejected"
     assert promote["decision"] == "candidate_discriminator_hypothesis"
     assert "single_symbol_timeframe_concentration" in concentrated["reasons"]
 
