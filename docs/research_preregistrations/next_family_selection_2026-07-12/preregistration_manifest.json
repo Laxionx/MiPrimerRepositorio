@@ -1,0 +1,147 @@
+{
+  "schema_version": "next_family_preregistration.v2",
+  "preregistration_version": "volatility-regime-transition-vrt-20260712-v1",
+  "canonicalization": {
+    "content_hash_algorithm": "sha256",
+    "text_encoding": "utf-8",
+    "semantic_source": "this manifest and the named normative documents must agree exactly"
+  },
+  "family": {
+    "name": "Volatility Regime Transition",
+    "id": "volatility-regime-transition-vrt-20260712-v1",
+    "status": "selected_not_active",
+    "base_commit": "c3f4742ea85781734b17320db8f4406a4f6e9b78"
+  },
+  "selection": {
+    "locked_ranking": [
+      {"family": "Volatility Regime Transition", "score": 27},
+      {"family": "Trend Continuation After Pullback", "score": 23},
+      {"family": "Session Transition", "score": 22},
+      {"family": "Abnormal Range Mean Reversion", "score": 21}
+    ],
+    "historical_performance_used": false
+  },
+  "independence_from_liquidity_sweep": {
+    "liquidity_sweep_status": "formally_closed",
+    "event_population": "generated_directly_from_this_volatility_state_machine",
+    "forbidden_inputs": ["liquidity_sweep_candidates", "liquidity_sweep_setups", "liquidity_sweep_trades", "liquidity_sweep_winners", "liquidity_sweep_losers", "liquidity_sweep_favorable_cohorts", "sweep_occurrence"],
+    "rescue_filter_forbidden": true,
+    "chance_timestamp_overlap_permitted": true,
+    "overlap_changes_population": false
+  },
+  "contamination": {
+    "known_used_interval": ["2026-01-01T00:00:00Z", "2026-07-10T21:00:00Z"],
+    "known_used_roles": ["development", "internal_validation"],
+    "independent_confirmation_permitted": false,
+    "prior_inspected_concepts": ["atr", "atr_contraction_pct", "compression_score", "related_atr_range_concepts"],
+    "current_fields_with_prior_inspection_or_conceptual_overlap": ["atr_14_points", "atr_56_points", "atr_ratio_14_56", "atr_ratio_change_8", "mean_range_8_points", "mean_range_56_points", "range_ratio_8_56"],
+    "current_fields_without_identified_prior_liquidity_sweep_counterpart": ["efficiency_20"],
+    "inclusion_basis": "preregistered_volatility_mechanism_only",
+    "prior_liquidity_sweep_effects_may_motivate_parameters": false,
+    "contaminated_success_conclusion": "candidate_discriminator_hypothesis_only"
+  },
+  "permitted_data": {
+    "source": "local_mt5_bars",
+    "required_fields": ["timestamp_utc", "open_bid", "high_bid", "low_bid", "close_bid", "spread_points", "point_size", "symbol", "timeframe"],
+    "external_sources_permitted": false,
+    "raw_ohlc_side": "bid"
+  },
+  "universe": ["XAUUSD:M5", "XAUUSD:M15", "XAUUSD:H1", "EURUSD:M5", "EURUSD:M15", "GBPUSD:M5", "GBPUSD:M15", "US30:M5", "US30:M15"],
+  "periods": {
+    "development": ["2026-01-01T00:00:00Z", "2026-04-30T23:59:59Z"],
+    "internal_validation": ["2026-05-01T00:00:00Z", "2026-07-10T21:00:00Z"],
+    "prospective": {"start": "activation_timestamp_utc_only", "duration": "three_complete_calendar_months", "pre_activation_data_is_prospective": false}
+  },
+  "detector": {
+    "implementation_numeric_semantics": "unrounded_ieee754_binary64",
+    "decision_timestamp": "utc_close_timestamp_of_completed_bar_t",
+    "input_fields": ["timestamp_utc", "symbol", "timeframe", "open_bid", "high_bid", "low_bid", "close_bid", "spread_points", "point_size"],
+    "minimum_contiguous_valid_completed_bars": 64,
+    "gap_rule": "timestamp_delta_gt_three_nominal_timeframe_durations_resets_to_unavailable",
+    "true_range": "max(high_t-low_t,abs(high_t-close_t_minus_1),abs(low_t-close_t_minus_1))",
+    "atr": {"method": "wilder", "fast_period": 14, "slow_period": 56, "initialization": "arithmetic_mean_of_first_n_true_ranges", "recurrence": "((n-1)*atr_previous+tr_current)/n"},
+    "ratio": "atr_14_points/atr_56_points",
+    "threshold": {"value": 1.2, "unit": "dimensionless", "below_operator": "<", "above_operator": ">="},
+    "states": {"unavailable": "invalid_missing_duplicate_nonmonotonic_or_gapped_stream_or_warmup", "below": "ratio_lt_1_20", "above": "ratio_gte_1_20"},
+    "initial_state": "after_64_contiguous_valid_completed_bars_initialize_to_below_or_above_without_event",
+    "transition_start_and_confirmation": "same_completed_bar_prior_state_below_and_ratio_gte_1_20",
+    "transition_end_reset_rearm": "first_subsequent_eligible_ratio_lt_1_20_sets_below_and_rearms",
+    "persistence_completed_bars": 1,
+    "cooldown_completed_bars": 0,
+    "direction": {"long": "close_t_gt_close_t_minus_8", "short": "close_t_lt_close_t_minus_8", "equality": "raw_event_direction_none_terminal_no_direction"},
+    "duplicate_suppression": "retain_first_canonical_id_in_ascending_source_row_order",
+    "overlap_policy": "raw_event_stream_retained; outcome_can_mark_suppressed_overlap",
+    "session_boundary_behavior": "no_special_behavior; continuity_rule_only",
+    "stream_isolation": "independent_per_symbol_and_timeframe",
+    "event_identity": {"preimage": "family_id|preregistration_version|symbol|timeframe|decision_timestamp_utc|below_to_above|direction|atr14=14|atr56=56|threshold=1.20|warmup=64", "algorithm": "sha256_utf8_lowercase_hex"},
+    "ordering": ["decision_timestamp_utc", "symbol", "timeframe", "event_id"]
+  },
+  "feature_registry": {
+    "decision_timestamp": "utc_close_timestamp_of_completed_bar_t",
+    "common_missing_policy": "unavailable_fail_closed_no_imputation",
+    "source_basis": "local_mt5_completed_bid_bars_and_symbol_metadata",
+    "gap_behavior": "reset_detector_state_and_make_dependent_field_unavailable",
+    "primitive": [
+      {"name": "timestamp_utc", "role": "detector_input", "type": "utc_timestamp", "nullable": false, "timing": "pre_decision", "depends_on_fields": [], "unit": "utc", "invariant": "strictly_increasing"},
+      {"name": "symbol", "role": "detector_input", "type": "string", "nullable": false, "timing": "pre_decision", "depends_on_fields": [], "unit": "identifier", "invariant": "declared_universe"},
+      {"name": "timeframe", "role": "detector_input", "type": "enum", "nullable": false, "timing": "pre_decision", "depends_on_fields": [], "unit": "timeframe", "invariant": "declared_universe"},
+      {"name": "open_bid", "role": "detector_input", "type": "float64", "nullable": false, "timing": "pre_decision", "depends_on_fields": [], "unit": "price", "invariant": "positive"},
+      {"name": "high_bid", "role": "detector_input", "type": "float64", "nullable": false, "timing": "pre_decision", "depends_on_fields": [], "unit": "price", "invariant": "positive_and_gte_low"},
+      {"name": "low_bid", "role": "detector_input", "type": "float64", "nullable": false, "timing": "pre_decision", "depends_on_fields": [], "unit": "price", "invariant": "positive_and_lte_high"},
+      {"name": "close_bid", "role": "detector_input", "type": "float64", "nullable": false, "timing": "pre_decision", "depends_on_fields": [], "unit": "price", "invariant": "positive"},
+      {"name": "spread_points", "role": "outcome_audit_only", "type": "float64", "nullable": false, "timing": "at_entry", "depends_on_fields": [], "unit": "broker_points", "strict_eligibility": false, "exclusion_reason": "entry_time_cost"},
+      {"name": "point_size", "role": "outcome_audit_only", "type": "float64", "nullable": false, "timing": "at_entry", "depends_on_fields": [], "unit": "price_per_point", "strict_eligibility": false, "exclusion_reason": "entry_time_cost"},
+      {"name": "tick_size", "role": "audit_only", "type": "float64", "nullable": true, "timing": "at_entry", "depends_on_fields": [], "unit": "price", "strict_eligibility": false, "exclusion_reason": "never_substitute_for_point_size"}
+    ],
+    "derived": [
+      {"name": "true_range_points", "role": "detector_state", "type": "float64", "nullable": true, "definition": "max(high-low,abs(high-close_prev),abs(low-close_prev))", "depends_on_fields": ["high_bid", "low_bid", "close_bid"], "timing": "pre_decision", "current_bar_usage": "current_high_low_prior_close", "unit": "price", "strict_eligibility": false, "exclusion_reason": "detector_state_only"},
+      {"name": "atr_14_points", "role": "detector_input_and_discovery_predictor", "type": "float64", "nullable": true, "definition": "wilder_atr_true_range_period_14", "depends_on_fields": ["true_range_points"], "timing": "pre_decision", "current_bar_usage": "through_t", "unit": "price", "strict_eligibility": true},
+      {"name": "atr_56_points", "role": "detector_input_and_discovery_predictor", "type": "float64", "nullable": true, "definition": "wilder_atr_true_range_period_56", "depends_on_fields": ["true_range_points"], "timing": "pre_decision", "current_bar_usage": "through_t", "unit": "price", "strict_eligibility": true},
+      {"name": "atr_ratio_14_56", "role": "detector_input_and_discovery_predictor", "type": "float64", "nullable": true, "definition": "atr_14_points/atr_56_points", "depends_on_fields": ["atr_14_points", "atr_56_points"], "timing": "pre_decision", "current_bar_usage": "through_t", "unit": "dimensionless", "strict_eligibility": true},
+      {"name": "prior_atr_ratio_14_56", "role": "detector_state", "type": "float64", "nullable": true, "definition": "ratio_at_t_minus_1", "depends_on_fields": ["atr_ratio_14_56"], "timing": "pre_decision", "current_bar_usage": "prior_only", "unit": "dimensionless", "strict_eligibility": false, "exclusion_reason": "detector_state_only"},
+      {"name": "regime_state", "role": "detector_state", "type": "enum", "nullable": true, "definition": "unavailable_below_above_state_machine", "depends_on_fields": ["atr_ratio_14_56", "prior_atr_ratio_14_56", "timestamp_utc"], "timing": "pre_decision", "current_bar_usage": "current_and_prior", "unit": "state", "strict_eligibility": false, "exclusion_reason": "detector_state_only"},
+      {"name": "atr_ratio_change_8", "role": "discovery_predictor", "type": "float64", "nullable": true, "definition": "ratio_t_minus_ratio_t_minus_8", "depends_on_fields": ["atr_ratio_14_56"], "timing": "pre_decision", "current_bar_usage": "current_and_prior", "unit": "dimensionless", "strict_eligibility": true},
+      {"name": "mean_range_8_points", "role": "discovery_predictor", "type": "float64", "nullable": true, "definition": "mean_high_minus_low_t_minus_7_through_t", "depends_on_fields": ["high_bid", "low_bid"], "timing": "pre_decision", "current_bar_usage": "through_t", "unit": "price", "strict_eligibility": true},
+      {"name": "mean_range_56_points", "role": "discovery_predictor", "type": "float64", "nullable": true, "definition": "mean_high_minus_low_t_minus_55_through_t", "depends_on_fields": ["high_bid", "low_bid"], "timing": "pre_decision", "current_bar_usage": "through_t", "unit": "price", "strict_eligibility": true},
+      {"name": "range_ratio_8_56", "role": "discovery_predictor", "type": "float64", "nullable": true, "definition": "mean_range_8_points/mean_range_56_points", "depends_on_fields": ["mean_range_8_points", "mean_range_56_points"], "timing": "pre_decision", "current_bar_usage": "through_t", "unit": "dimensionless", "strict_eligibility": true},
+      {"name": "efficiency_20", "role": "discovery_predictor", "type": "float64", "nullable": true, "definition": "abs(close_t-close_t_minus_20)/sum_abs_close_changes", "depends_on_fields": ["close_bid"], "timing": "pre_decision", "current_bar_usage": "through_t", "unit": "ratio_0_to_1", "strict_eligibility": true},
+      {"name": "direction", "role": "detector_output_state", "type": "enum", "nullable": false, "definition": "long_close_t_gt_close_t_minus_8_short_inverse_else_none", "depends_on_fields": ["close_bid"], "timing": "pre_decision", "current_bar_usage": "current_and_prior", "unit": "long_short_or_none", "strict_eligibility": false, "exclusion_reason": "detector_state_only"}
+    ],
+    "discovery_matrix": ["atr_14_points", "atr_56_points", "atr_ratio_14_56", "atr_ratio_change_8", "mean_range_8_points", "mean_range_56_points", "range_ratio_8_56", "efficiency_20"],
+    "outcome_only_excluded": ["next_bar_open_bid", "spread_price", "slippage_price", "effective_entry", "effective_exit", "stop", "target", "risk_price", "reward", "pnl", "r_multiple", "mfe", "mae", "future_bars", "terminal_outcome", "sweep_depth", "reclaim_speed"]
+  },
+  "outcome_contract": {
+    "entry_bar": "t_plus_1",
+    "spread_price": "spread_points_times_point_size",
+    "tick_size_substitution_forbidden": true,
+    "slippage_price": "0.25_times_spread_price_per_entry_and_exit",
+    "long_effective_entry": "open_bid_e+spread_price_e+slippage_price_e",
+    "short_effective_entry": "open_bid_e-slippage_price_e",
+    "risk_price": "1.50_times_atr_14_points_t",
+    "long_stop_target": ["entry-risk_price", "entry+2*risk_price"],
+    "short_stop_target": ["entry+risk_price", "entry-2*risk_price"],
+    "long_tp_sl_detection": ["high_bid_gte_target", "low_bid_lte_stop"],
+    "short_tp_sl_detection": ["low_bid_plus_spread_lte_target", "high_bid_plus_spread_gte_stop"],
+    "effective_exit": "long_gross_exit_minus_slippage;short_gross_exit_plus_slippage",
+    "post_cost_geometry": "risk_price_must_be_finite_and_positive",
+    "target_multiple": 2.0,
+    "max_holding_bars": 48,
+    "same_bar_tp_sl": "sl_first",
+    "time_exit_effective": "long_close_bid_minus_slippage;short_close_bid_plus_spread_plus_slippage",
+    "unresolved_trade": "time_exit_48_if_data_available_else_data_unavailable",
+    "r_formula": "direction_sign_times_effective_exit_minus_effective_entry_divided_by_risk_price",
+    "pnl_reconciliation": "price_pnl_per_unit_equals_R_times_risk_price",
+    "breakeven": "exact_zero_effective_pnl_time_exit_only",
+    "canonical_trade_identity": "sha256_utf8_event_id_entry_timestamp_utc_outcome_policy_v1",
+    "terminal_categories": ["invalid_input", "no_direction", "excluded_post_cost_geometry", "suppressed_overlap", "data_unavailable", "duplicate_event", "tp", "sl", "time_exit_48"],
+    "terminal_funnel_reconciliation": "raw_event_count_equals_sum_mutually_exclusive_terminal_categories"
+  },
+  "gates": {"minimum_support": {"development": 600, "internal": 300, "min_internal_setups_in_five_runs": 30}, "stability": {"min_nonnegative_median_runs": 5, "run_count": 9, "minimum_median_R": -0.2}, "temporal": {"development_mean_R_min": 0.0, "development_median_R_min": 0.0, "internal_mean_R_min": -0.05, "internal_median_R_min": 0.0}, "multiple_comparison": {"feature_count": 8, "method": "bonferroni", "two_sided_alpha": 0.00625}},
+  "activation_policy": {"pr_merge_alone_activates_prospective": false, "requirements": ["merged_preregistration", "reviewed_frozen_implementation_commit", "reviewed_frozen_provenance_artifact", "passing_conformance_tests", "frozen_execution_configuration", "committed_machine_readable_activation_record", "non_backdated_activation_timestamp_utc"], "timestamp_must_not_precede_activation_record_commit": true, "pre_activation_data_is_prospective": false, "activation_record_required_fields": ["family_id", "preregistration_commit", "implementation_commit", "provenance_artifact_sha256", "execution_configuration_sha256", "conformance_test_result_reference", "activation_record_commit", "activation_timestamp_utc", "symbols_timeframes", "software_versions", "schema_versions"]},
+  "implementation_conformance": {"required": true, "tests": ["synthetic_fixtures", "exact_event_stream", "warmup_boundary", "threshold_equality", "threshold_below_above", "regime_transition", "same_bar_confirmation", "reset", "rearming", "persistence", "no_cooldown", "missing_value", "gap", "duplicate_event", "overlapping_event", "canonical_event_id", "symbol_timeframe_isolation", "provenance_contract", "strict_eligibility"], "required_report_fields": ["preregistration_manifest_sha256", "implementation_commit", "extracted_implementation_configuration", "machine_readable_semantic_diff", "conformance_test_results"], "material_diff_blocks_execution": true},
+  "observation_policy": {"immutable_record_before_performance_observation": true, "required_record_fields": ["preregistration_version", "implementation_commit", "activation_record", "input_artifact_hashes", "execution_configuration_hash", "command", "start_timestamp_utc", "output_directory", "expected_report_schemas"], "preserve_all_runs": true, "forbid_overwrite_delete_or_silent_regeneration": true},
+  "bug_fix_policy": {"preserve_original_run": true, "require_minimal_reproduction": true, "identify_affected_runs": true, "classify_affected_layer": ["event_generation", "features", "costs", "outcomes", "reporting"], "new_implementation_commit_and_execution_version": true, "silent_replacement_forbidden": true, "state_prior_development_validity": true, "new_prospective_boundary_if_observed_influence_or_semantic_change": true},
+  "forbidden_post_result_actions": ["change_detector", "change_thresholds", "change_lookbacks", "add_or_remove_features", "change_universe", "change_period_or_split", "change_gates_or_minimum_support", "change_cost_or_stop_target_assumptions", "combine_predictors_or_add_interactions", "machine_learning", "favorable_subgroups", "near_pass_reclassification", "liquidity_sweep_reuse", "rename_modified_failed_experiment_as_same_family"],
+  "closure_policy": "mandatory_on_any_required_gate_failure; preserve_evidence_and_forbid_rescue_under_same_family_version",
+  "execution_authorized_by_this_manifest": false
+}

@@ -29,3 +29,22 @@ The durable closure package and its evidence manifest are in
 `docs/research_closures/liquidity_sweep_2026-07-12/`. The large raw history and
 journals remain outside Git in the referenced durable archive. They are retained for
 auditability only, not for tuning or rescue analysis of this closed family.
+
+## Next-family selection and preregistration - 2026-07-12
+
+Liquidity Sweep remains **CLOSED**; edge remains unconfirmed and profitable strategy remains unconfirmed.
+Candidate-family selection has begun through an ex-ante methodological rubric. The provisional selection is Volatility Regime Transition, documented under
+`docs/research_preregistrations/next_family_selection_2026-07-12/`.
+
+No backtest, execution, MT5 connection, market-data generation, or order API call has
+occurred for that prospective family. It is not an active research family until its
+preregistration has been reviewed and merged; even then, its first execution remains
+subject to the preregistration's separate implementation and prospective-validation
+gates.
+
+Volatility Regime Transition is selected but not yet active. No detector has been
+implemented, no implementation has been validated, and no prospective activation UTC
+timestamp exists. No MT5 or real-data execution has occurred. Implementation cannot
+begin until PR #28 is merged; real-data execution cannot begin until a separate
+implementation PR and a complete activation record are reviewed and frozen. Liquidity
+Sweep remains formally closed; no edge and no profitable strategy are confirmed.
