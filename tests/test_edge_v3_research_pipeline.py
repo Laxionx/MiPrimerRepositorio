@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from trading_bot.research import edge_v3_full_pretrade_discriminator_discovery as discovery
 from trading_bot.research import edge_v3_pretrade_feature_matrix as matrix
 from trading_bot.research import edge_v3_robustness_scorecard as scorecard
@@ -167,6 +169,60 @@ def test_matrix_fails_closed_for_predecision_spread_dependency():
         assert "timing contradiction" in str(exc)
     else:
         raise AssertionError("strict matrix accepted a spread-dependent pre-decision field")
+
+
+@pytest.mark.parametrize(
+    ("missing", "expected"),
+    [
+        (("uses_spread",), "uses_spread"),
+        (("uses_slippage",), "uses_slippage"),
+        (("uses_spread", "uses_slippage"), "uses_slippage, uses_spread"),
+        (("source_timestamp",), "source_timestamp"),
+    ],
+)
+def test_matrix_reports_all_missing_strict_provenance_keys(missing, expected):
+    provenance = _provenance()
+    for key in missing:
+        provenance["atr"].pop(key)
+
+    with pytest.raises(
+        ValueError,
+        match=rf"Feature 'atr' has incomplete strict provenance metadata; missing required keys: {expected}",
+    ):
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+
+
+def test_matrix_rejects_non_mapping_strict_provenance():
+    provenance = _provenance()
+    provenance["atr"] = "invalid"
+
+    with pytest.raises(ValueError, match=r"Feature 'atr' has invalid strict provenance metadata"):
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("uses_spread", "false"), ("uses_slippage", 0)],
+)
+def test_matrix_rejects_non_boolean_strict_cost_metadata(field, value):
+    provenance = _provenance()
+    provenance["atr"] = {**provenance["atr"], field: value}
+
+    with pytest.raises(ValueError, match=rf"Feature 'atr' has invalid strict provenance field '{field}'.*expected boolean"):
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
+
+
+@pytest.mark.parametrize("field", ("uses_spread", "uses_slippage"))
+def test_matrix_reports_predecision_cost_contradictions(field):
+    provenance = _provenance()
+    provenance["atr"] = {
+        **provenance["atr"],
+        field: True,
+        "uses_spread_or_slippage": False,
+    }
+
+    with pytest.raises(ValueError, match=r"strict discovery timing contradiction for atr"):
+        matrix.build_matrix_from_records(_matrix_records(2), provenance=provenance)
 
 
 def test_matrix_admits_expanded_strict_fields_but_keeps_exclusions(tmp_path):
