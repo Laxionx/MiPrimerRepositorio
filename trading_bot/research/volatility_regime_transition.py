@@ -385,6 +385,34 @@ def _audit(events: Sequence[Mapping[str, Any]], suppressed: Sequence[Mapping[str
     }
 
 
+def activation_record_schema() -> dict[str, Any]:
+    """Return the future activation-record contract without creating an activation."""
+    return {
+        "schema_version": "vrt_activation_record.v1",
+        "required_fields": [
+            "family_id", "preregistration_commit", "implementation_commit",
+            "provenance_artifact_sha256", "execution_configuration_sha256",
+            "conformance_test_result_reference", "activation_record_commit",
+            "activation_timestamp_utc", "symbols_timeframes", "software_versions",
+            "schema_versions",
+        ],
+        "activation_permitted": False,
+    }
+
+
+def observation_record_schema() -> dict[str, Any]:
+    """Return the future irreversible-observation contract without observing data."""
+    return {
+        "schema_version": "vrt_observation_record.v1",
+        "required_fields": [
+            "preregistration_version", "implementation_commit", "activation_record",
+            "input_artifact_hashes", "execution_configuration_hash", "command",
+            "start_timestamp_utc", "output_directory", "expected_report_schemas",
+        ],
+        "observation_permitted": False,
+    }
+
+
 def generate_events(
     bars: Sequence[Mapping[str, Any]],
     *,

@@ -195,3 +195,13 @@ def test_audit_schema_is_execution_disabled_and_has_terminal_reconciliation():
     assert audit["execution_disabled"] is True
     assert audit["broker_api_called"] is False
     assert audit["raw_event_count"] == audit["terminal_category_counts"]["raw"]
+
+
+def test_future_activation_and_observation_schemas_match_preregistration_policy():
+    activation = vrt.activation_record_schema()
+    observation = vrt.observation_record_schema()
+
+    assert activation["schema_version"] == "vrt_activation_record.v1"
+    assert "activation_timestamp_utc" in activation["required_fields"]
+    assert observation["schema_version"] == "vrt_observation_record.v1"
+    assert "input_artifact_hashes" in observation["required_fields"]
