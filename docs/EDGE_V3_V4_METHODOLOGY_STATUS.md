@@ -42,12 +42,13 @@ preregistration has been reviewed and merged; even then, its first execution rem
 subject to the preregistration's separate implementation and prospective-validation
 gates.
 
-Volatility Regime Transition is selected, implemented, and still inactive. The
-preregistration merge is `c635df3000c04c016801557e3427fb2e01a847c5`; the canonical
-implementation merge is `807f79208c50043a8847f6d33f90e0c88076492d`; and the reviewed
-implementation head is `e068ec01b52a21c92cb349189e0c0135c364453f`. A prepared,
-machine-readable activation package freezes the future execution boundary, but its
-prospective activation UTC timestamp remains null. Merging that package does not start
-prospective validation. No MT5 or real-data execution, backtest, performance inspection,
-or order API call has occurred. Liquidity Sweep remains formally closed; no edge and no
-profitable strategy are confirmed.
+Volatility Regime Transition is **CLOSED**. The preregistration merge is
+`c635df3000c04c016801557e3427fb2e01a847c5`; the canonical implementation merge is
+`807f79208c50043a8847f6d33f90e0c88076492d`. Its frozen historical
+development/internal-validation rerun (`vrt-run-d7cdf7db-0fd0-4c13-81ab-c4074b0d0901`,
+run-manifest SHA-256
+`bc97760faba1872adb1a364378227c6badbb5ebabc4506400af8f6ddae53d9e1`) produced no
+Candidate Discriminator Hypothesis: the fixed temporal and stability gates failed for
+all eight strict predictors. No edge or profitable strategy was found or confirmed, and
+no prospective confirmation was started. No order API call occurred. Liquidity Sweep
+remains formally closed; no successor family is started by this status record.

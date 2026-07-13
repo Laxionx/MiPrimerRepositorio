@@ -16,12 +16,14 @@ IMPLEMENTATION_MERGE_COMMIT = "807f79208c50043a8847f6d33f90e0c88076492d"
 REVIEWED_IMPLEMENTATION_HEAD = "e068ec01b52a21c92cb349189e0c0135c364453f"
 ACTIVATION_RECORD_CREATION_COMMIT = "91342b3a6b5957ad6f5d041c4b466ac866f00400"
 ACTIVATION_RECORD_CREATION_UTC = "2026-07-12T22:59:37Z"
+ACTIVATION_EXECUTION_COMMIT = "c9e503ca5ffe4a70f4ad1a09f4ccb9652256d4e5"
+ACTIVATION_EXECUTION_COMMIT_UTC = "2026-07-12T23:58:54Z"
 FAMILY_ID = "volatility-regime-transition-vrt-20260712-v1"
 PACKAGE_RELATIVE = Path("docs/research_preregistrations/next_family_selection_2026-07-12")
 MANIFEST_NAME = "preregistration_manifest.json"
 PROVENANCE_NAME = "feature_provenance_plan.md"
 CONFIG_NAME = "vrt_frozen_execution_configuration.json"
-RECORD_NAME = "vrt_activation_record.json"
+RECORD_NAME = "vrt_activation_record_v2.json"
 OBSERVATION_SCHEMA_NAME = "vrt_first_observation_record.schema.json"
 IMPLEMENTATION_RELATIVE = Path("trading_bot/research/volatility_regime_transition.py")
 EXECUTION_FLAGS = (
@@ -163,7 +165,8 @@ def validate_activation_package(
     _expect(manifest.get("preregistration_version"), FAMILY_ID, "preregistration family")
     _expect(manifest.get("execution_authorized_by_this_manifest"), False, "manifest execution authorization")
     _validate_execution_config(manifest, manifest_path, config)
-    _expect(record.get("schema_version"), "vrt_activation_record.v1", "activation record schema")
+    if record.get("schema_version") not in {"vrt_activation_record.v1", "vrt_activation_record.v2"}:
+        raise ActivationConformanceError("activation record schema mismatch")
     _expect(record.get("family_id"), FAMILY_ID, "activation record family")
     _expect(record.get("family_version"), FAMILY_ID, "activation record family version")
     _expect(record.get("preregistration_merge_commit"), PREREGISTRATION_COMMIT, "preregistration commit")
@@ -182,13 +185,23 @@ def validate_activation_package(
     _expect(record.get("symbols_timeframes"), manifest.get("universe"), "activation symbols/timeframes")
     _expect(record.get("fixed_periods"), manifest.get("periods"), "activation temporal split")
     status = record.get("status")
-    if status not in {"prepared_not_activated", "activation_requirements_complete"}:
+    if status not in {"prepared_not_activated", "activation_requirements_complete", "active_prospective"}:
         raise ActivationConformanceError("activation status mismatch")
     for flag in EXECUTION_FLAGS:
         _expect(record.get(flag), False, flag)
     _utc(record.get("prepared_at_utc"), "prepared timestamp")
     prospective = record.get("prospective_activation_at_utc")
     if prospective is not None:
+        if status == "active_prospective":
+            _expect(record.get("activation_commit"), ACTIVATION_EXECUTION_COMMIT, "activation commit")
+            _expect(record.get("activation_committed_at_utc"), ACTIVATION_EXECUTION_COMMIT_UTC, "activation commit timestamp")
+            if _utc(prospective, "activation timestamp") <= _utc(record["activation_committed_at_utc"], "activation commit timestamp"):
+                raise ActivationConformanceError("activation timestamp must follow activation commit")
+            return {
+                "status": status, "prospective_activation_at_utc": prospective,
+                "activation_record_sha256": canonical_json_sha256(record),
+                "manifest_sha256": implementation_conformance["manifest_sha256"],
+            }
         if status != "activation_requirements_complete":
             raise ActivationConformanceError("prospective activation is not permitted for a prepared record")
         committed = _utc(record.get("committed_at_utc"), "committed timestamp")

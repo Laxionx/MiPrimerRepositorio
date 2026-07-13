@@ -97,6 +97,9 @@ class _StreamState:
     history: list[dict[str, Any]] = field(default_factory=list)
     regime: RegimeState = RegimeState.UNAVAILABLE
     last_timestamp: datetime | None = None
+    true_ranges: list[float] = field(default_factory=list)
+    fast_atr: float | None = None
+    slow_atr: float | None = None
 
 
 def _default_manifest_path() -> Path:
@@ -477,7 +480,7 @@ def observation_record_schema() -> dict[str, Any]:
     }
 
 
-def generate_events(
+def generate_events_reference(
     bars: Sequence[Mapping[str, Any]],
     *,
     active_until_by_stream: Mapping[str, int] | None = None,
@@ -552,3 +555,78 @@ def generate_events(
         "events": ordered,
         "audit": _audit(ordered, suppressed, resets),
     }
+
+
+def generate_events(
+    bars: Sequence[Mapping[str, Any]], *, active_until_by_stream: Mapping[str, int] | None = None,
+    manifest_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Linear-time implementation exactly equivalent to ``generate_events_reference``."""
+    conformance = validate_preregistration_conformance(manifest_path)
+    streams: dict[tuple[str, str], _StreamState] = {}
+    raw_events: list[dict[str, Any]] = []
+    resets: list[dict[str, Any]] = []
+
+    def reset(state: _StreamState) -> None:
+        state.history.clear()
+        state.true_ranges.clear()
+        state.fast_atr = state.slow_atr = None
+        state.regime = RegimeState.UNAVAILABLE
+
+    for source_index, raw in enumerate(bars):
+        try:
+            bar = _normalise_bar(raw)
+        except (TypeError, ValueError) as exc:
+            if isinstance(raw, Mapping) and isinstance(raw.get("symbol"), str) and raw.get("symbol") and isinstance(raw.get("timeframe"), str) and raw.get("timeframe"):
+                affected = streams.setdefault((raw["symbol"], raw["timeframe"]), _StreamState())
+                reset(affected)
+                affected.last_timestamp = None
+            resets.append({"source_index": source_index, "reason": "invalid_input", "detail": str(exc)})
+            continue
+        state = streams.setdefault((bar["symbol"], bar["timeframe"]), _StreamState())
+        if state.last_timestamp is not None:
+            if bar["timestamp"] == state.last_timestamp:
+                reset(state)
+                resets.append({"source_index": source_index, "reason": "duplicate_timestamp"})
+                continue
+            if bar["timestamp"] < state.last_timestamp:
+                reset(state)
+                resets.append({"source_index": source_index, "reason": "non_monotonic_timestamp"})
+                continue
+            if bar["timestamp"] - state.last_timestamp > EXPECTED_CONFIG["gap_multiplier"] * _timeframe_duration(bar["timeframe"]):
+                reset(state)
+                resets.append({"source_index": source_index, "reason": "gap"})
+        if state.history:
+            previous = state.history[-1]
+            current_tr = max(bar["high_bid"] - bar["low_bid"], abs(bar["high_bid"] - previous["close_bid"]), abs(bar["low_bid"] - previous["close_bid"]))
+            state.true_ranges.append(current_tr)
+            count = len(state.true_ranges)
+            if count == EXPECTED_CONFIG["fast_period"]:
+                state.fast_atr = sum(state.true_ranges) / count
+            elif count > EXPECTED_CONFIG["fast_period"] and state.fast_atr is not None:
+                state.fast_atr = ((EXPECTED_CONFIG["fast_period"] - 1) * state.fast_atr + current_tr) / EXPECTED_CONFIG["fast_period"]
+            if count == EXPECTED_CONFIG["slow_period"]:
+                state.slow_atr = sum(state.true_ranges) / count
+            elif count > EXPECTED_CONFIG["slow_period"] and state.slow_atr is not None:
+                state.slow_atr = ((EXPECTED_CONFIG["slow_period"] - 1) * state.slow_atr + current_tr) / EXPECTED_CONFIG["slow_period"]
+        state.history.append(bar)
+        state.last_timestamp = bar["timestamp"]
+        if len(state.history) < EXPECTED_CONFIG["warmup_bars"]:
+            continue
+        if state.fast_atr is None or state.slow_atr is None or state.slow_atr <= 0 or not math.isfinite(state.fast_atr) or not math.isfinite(state.slow_atr):
+            state.regime = RegimeState.UNAVAILABLE
+            resets.append({"source_index": source_index, "reason": "unavailable_ratio"})
+            continue
+        ratio = state.fast_atr / state.slow_atr
+        if state.regime is RegimeState.UNAVAILABLE:
+            state.regime = classify_regime(ratio)
+            continue
+        state.regime, transition = advance_regime_state(state.regime, ratio)
+        if not transition:
+            continue
+        prior_close = state.history[-9]["close_bid"]
+        direction = "long" if bar["close_bid"] > prior_close else "short" if bar["close_bid"] < prior_close else "none"
+        raw_events.append(make_event(symbol=bar["symbol"], timeframe=bar["timeframe"], decision_timestamp=bar["timestamp"] + _timeframe_duration(bar["timeframe"]), direction=direction, source_index=source_index))
+    kept, suppressed = suppress_duplicate_events(raw_events)
+    ordered = sorted(classify_overlap(kept, active_until_by_stream), key=event_order_key)
+    return {"schema_version": "vrt_event_stream.v1", "conformance": conformance, "events": ordered, "audit": _audit(ordered, suppressed, resets)}

@@ -26,3 +26,18 @@ validation.
 Until those gates are met, Volatility Regime Transition is not active research. A
 development or internal-validation result may at most create a candidate hypothesis;
 it cannot confirm an edge or profitable strategy.
+
+## Final execution decision — 2026-07-12
+
+**Volatility Regime Transition CLOSED.** The frozen historical
+development/internal-validation execution completed from its preserved input snapshot
+without altering the preregistered configuration. Its immutable rerun record is
+`vrt-run-d7cdf7db-0fd0-4c13-81ab-c4074b0d0901`; its run-manifest SHA-256 is
+`bc97760faba1872adb1a364378227c6badbb5ebabc4506400af8f6ddae53d9e1`.
+
+The rerun produced 2,224 detector events and 2,224 terminal trade records. The eight
+strict predictors did not produce a Candidate Discriminator Hypothesis: the frozen
+temporal and stability gates failed. Accordingly, no edge or profitable strategy was
+found or confirmed, and no prospective confirmation was started. This closure applies
+to `volatility-regime-transition-vrt-20260712-v1`; no successor family is started by
+this record.
