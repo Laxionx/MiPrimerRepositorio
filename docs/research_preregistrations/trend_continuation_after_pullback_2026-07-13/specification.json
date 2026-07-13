@@ -1,0 +1,72 @@
+{
+  "schema_version": "trend_continuation_pullback_specification.v1",
+  "family": {
+    "id": "trend-continuation-after-pullback-tcp-20260713-v1",
+    "name": "Trend Continuation After Pullback",
+    "status": "frozen_for_historical_research",
+    "base_commit": "ab1119dae1cd208e275f967a5a309af72473b187"
+  },
+  "independence": {
+    "event_population": "generated_directly_from_completed_bid_bars_by_this_detector",
+    "forbidden_inputs": ["liquidity_sweep_candidates", "liquidity_sweep_trades", "volatility_regime_transition_events", "volatility_regime_transition_trades"],
+    "forbidden_filters": ["prior_family_event_overlap", "prior_family_outcome", "prior_family_candidate_status"],
+    "chance_timestamp_overlap_permitted": true
+  },
+  "data": {
+    "source": "local_mt5_completed_bid_bars_read_only",
+    "universe": ["XAUUSD:M5", "XAUUSD:M15", "XAUUSD:H1", "EURUSD:M5", "EURUSD:M15", "GBPUSD:M5", "GBPUSD:M15", "US30:M5", "US30:M15"],
+    "range": ["2026-01-01T00:00:00Z", "2026-07-10T21:00:00Z"],
+    "development": ["2026-01-01T00:00:00Z", "2026-04-30T23:59:59Z"],
+    "internal_validation": ["2026-05-01T00:00:00Z", "2026-07-10T21:00:00Z"],
+    "contamination": "development_and_internal_validation_only_never_independent_edge_confirmation"
+  },
+  "detector": {
+    "numeric_semantics": "unrounded_ieee754_binary64",
+    "completed_bar_policy": "only_completed_bar_t; no_partial_or_future_bar_dependency",
+    "decision_timestamp": "utc_close_timestamp_of_completed_confirmation_bar_t",
+    "ema": {"fast_period": 20, "slow_period": 50, "initialization": "arithmetic_mean_first_n_closes", "recurrence": "ema_t=alpha*close_t+(1-alpha)*ema_t_minus_1"},
+    "slow_ema_slope": {"lookback_bars": 10, "formula": "slow_ema_t-slow_ema_t_minus_10"},
+    "atr": {"period": 14, "method": "wilder", "true_range": "max(high_t-low_t,abs(high_t-close_t_minus_1),abs(low_t-close_t_minus_1))", "initialization": "arithmetic_mean_first_14_true_ranges", "recurrence": "(13*atr_t_minus_1+tr_t)/14"},
+    "warmup": {"minimum_contiguous_completed_bars": 60, "reason": "slow_ema_50_plus_slope_10"},
+    "trend": {
+      "long": "fast_ema_t>slow_ema_t and slow_ema_slope_t>0 and close_t>slow_ema_t",
+      "short": "fast_ema_t<slow_ema_t and slow_ema_slope_t<0 and close_t<slow_ema_t",
+      "equality": "not_eligible"
+    },
+    "pullback": {
+      "start_long": "eligible_long and low_t<=fast_ema_t",
+      "start_short": "eligible_short and high_t>=fast_ema_t",
+      "maximum_depth_atr": 1.0,
+      "depth_long": "max(0,fast_ema_t-low_t)/atr14_t",
+      "depth_short": "max(0,high_t-fast_ema_t)/atr14_t",
+      "maximum_duration_completed_bars": 6,
+      "invalidation": "trend_direction_no_longer_eligible or pullback_depth_atr>1.0 or duration>6"
+    },
+    "confirmation": {
+      "long": "active_long_pullback and close_t>fast_ema_t and close_t>open_t and close_t>high_t_minus_1",
+      "short": "active_short_pullback and close_t<fast_ema_t and close_t<open_t and close_t<low_t_minus_1",
+      "equality": "not_confirmation"
+    },
+    "cooldown_rearm": "after_confirmation_ignore_8_completed_bars_then_require_a_new_pullback_start",
+    "gap_missing": "invalid_missing_duplicate_nonmonotonic_or_timestamp_delta_gt_three_nominal_timeframe_durations_resets_stream",
+    "duplicates": "retain_first_canonical_event_in_ascending_source_row_order",
+    "overlap": "retain_raw_detector_events; execution_labels_later_events_suppressed_overlap_until_first_exit_or_bar_48",
+    "identity": {"preimage": "family_id|symbol|timeframe|decision_timestamp_utc|pullback_continuation|direction|ema20|ema50|slope10|atr14|depth1.0|duration6|cooldown8", "algorithm": "sha256_utf8_lowercase_hex"},
+    "ordering": ["decision_timestamp_utc", "symbol", "timeframe", "event_id"]
+  },
+  "strict_predictors": [
+    {"name": "trend_separation_atr", "formula": "abs(fast_ema_t-slow_ema_t)/atr14_t", "type": "float64", "source_fields": ["fast_ema", "slow_ema", "atr14"], "dependencies": ["completed_bars_through_t"], "timing": "pre_decision", "missing_value_policy": "unavailable_fail_closed_no_imputation", "unit": "dimensionless", "strict_eligibility": true},
+    {"name": "slow_ema_slope_atr", "formula": "slow_ema_slope_t/atr14_t", "type": "float64", "source_fields": ["slow_ema", "atr14"], "dependencies": ["completed_bars_through_t"], "timing": "pre_decision", "missing_value_policy": "unavailable_fail_closed_no_imputation", "unit": "dimensionless", "strict_eligibility": true},
+    {"name": "pullback_depth_atr", "formula": "active_pullback_depth_atr", "type": "float64", "source_fields": ["fast_ema", "high_bid", "low_bid", "atr14"], "dependencies": ["completed_bars_through_t"], "timing": "pre_decision", "missing_value_policy": "unavailable_fail_closed_no_imputation", "unit": "dimensionless", "strict_eligibility": true},
+    {"name": "pullback_duration_bars", "formula": "completed_bars_from_pullback_start_through_t", "type": "int", "source_fields": ["timestamp_utc"], "dependencies": ["active_pullback_state"], "timing": "pre_decision", "missing_value_policy": "unavailable_fail_closed_no_imputation", "unit": "bars", "strict_eligibility": true},
+    {"name": "distance_slow_ema_atr", "formula": "direction_sign*(close_t-slow_ema_t)/atr14_t", "type": "float64", "source_fields": ["close_bid", "slow_ema", "atr14"], "dependencies": ["event_direction"], "timing": "pre_decision", "missing_value_policy": "unavailable_fail_closed_no_imputation", "unit": "dimensionless", "strict_eligibility": true},
+    {"name": "confirmation_body_atr", "formula": "abs(close_t-open_t)/atr14_t", "type": "float64", "source_fields": ["open_bid", "close_bid", "atr14"], "dependencies": ["completed_confirmation_bar_t"], "timing": "pre_decision", "missing_value_policy": "unavailable_fail_closed_no_imputation", "unit": "dimensionless", "strict_eligibility": true},
+    {"name": "trend_persistence_20", "formula": "count_directional_close_changes_matching_event_direction_last_20/20", "type": "float64", "source_fields": ["close_bid"], "dependencies": ["completed_bars_t_minus_20_through_t"], "timing": "pre_decision", "missing_value_policy": "unavailable_fail_closed_no_imputation", "unit": "ratio_0_to_1", "strict_eligibility": true},
+    {"name": "directional_efficiency_20", "formula": "direction_sign*(close_t-close_t_minus_20)/sum_abs_close_changes_last_20", "type": "float64", "source_fields": ["close_bid"], "dependencies": ["completed_bars_t_minus_20_through_t"], "timing": "pre_decision", "missing_value_policy": "unavailable_fail_closed_no_imputation", "unit": "ratio_minus1_to1", "strict_eligibility": true}
+  ],
+  "outcome_contract": {"entry_bar": "t_plus_1", "spread_price": "spread_points*point_size", "tick_size_substitution": "forbidden", "slippage_price": "0.25*spread_price_per_entry_and_exit", "risk_price": "1.5*atr14_t", "target_multiple_R": 2.0, "max_holding_bars": 48, "same_bar_tp_sl": "sl_first", "gap": "use_observed_next_bar_open_for_entry_and_unresolved_terminal_data_unavailable", "overlap": "one_active_outcome_per_symbol_timeframe", "trade_identity": "sha256_utf8_event_id_entry_timestamp_utc_outcome_policy_v1"},
+  "gates": {"minimum_support": {"development": 300, "internal_validation": 200, "per_run_internal": 30}, "temporal": {"development_mean_R_min": 0.0, "development_median_R_min": 0.0, "internal_mean_R_min": 0.0, "internal_median_R_min": 0.0}, "stability": {"minimum_nonnegative_internal_median_runs": 5, "run_count": 9}, "candidate_approval": "every_support_temporal_and_stability_gate_must_pass_for_each_predictor"},
+  "closure_policy": "any_required_gate_failure_closes_this_family_version_without_retuning_or_rescue",
+  "execution_authorized_by_specification": true,
+  "order_api_permitted": false
+}
