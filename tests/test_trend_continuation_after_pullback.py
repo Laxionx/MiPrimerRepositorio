@@ -132,3 +132,16 @@ def test_event_order_ids_and_linear_operation_count_are_stream_isolated():
         result["events"]
     )
     assert result["audit"]["linear_operations"] <= len(rows) * 16
+
+
+def test_future_bars_cannot_change_completed_confirmation_or_event_identity():
+    rows = _long_pullback_fixture()
+    baseline = tcp.generate_events(rows)["events"][0]
+    altered = copy.deepcopy(rows)
+    for row in altered[72:]:
+        row["high_bid"] += 10_000
+        row["low_bid"] -= 10_000
+        row["close_bid"] += 5_000
+    observed = tcp.generate_events(altered)["events"][0]
+    assert observed["event_id"] == baseline["event_id"]
+    assert observed["decision_timestamp_utc"] == baseline["decision_timestamp_utc"]

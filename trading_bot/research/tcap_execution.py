@@ -336,6 +336,21 @@ def _gate_report(
     return report
 
 
+def _validate_frozen_input(bars: Sequence[Mapping[str, Any]]) -> None:
+    data = detector.load_specification()["data"]
+    expected_universe = set(data["universe"])
+    actual_universe = {f"{row['symbol']}:{row['timeframe']}" for row in bars}
+    if actual_universe != expected_universe:
+        raise ValueError("input universe does not match frozen specification")
+    start, end = (_timestamp(value) for value in data["range"])
+    if any(
+        _timestamp(row["timestamp_utc"]) < start
+        or _timestamp(row["timestamp_utc"]) > end
+        for row in bars
+    ):
+        raise ValueError("input range does not match frozen specification")
+
+
 def execute_frozen_tcp(
     bars: Sequence[Mapping[str, Any]],
     *,
@@ -345,6 +360,7 @@ def execute_frozen_tcp(
 ) -> dict[str, Any]:
     """Run one immutable historical research execution; it has no order API path."""
     conformance = detector.validate_specification_conformance()
+    _validate_frozen_input(bars)
     run = Path(output_root) / f"tcp-run-{uuid.uuid4()}"
     run.mkdir(parents=True, exist_ok=False)
     ordered = sorted(

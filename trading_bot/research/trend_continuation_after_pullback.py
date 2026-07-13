@@ -358,6 +358,7 @@ def generate_events(
                         else "non_monotonic_timestamp",
                     }
                 )
+                continue
             elif delta > timedelta(seconds=3 * TIMEFRAME_SECONDS[bar["timeframe"]]):
                 _reset(state)
                 resets.append({"source_index": source_index, "reason": "gap"})
