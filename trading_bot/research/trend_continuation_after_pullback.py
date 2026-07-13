@@ -319,6 +319,7 @@ def generate_events(
 ) -> dict[str, Any]:
     conformance = validate_specification_conformance(specification_path)
     streams: dict[tuple[str, str], _StreamState] = {}
+    stream_positions: dict[tuple[str, str], int] = {}
     raw_events: list[dict[str, Any]] = []
     resets: list[dict[str, Any]] = []
     for source_index, raw in enumerate(bars):
@@ -346,6 +347,8 @@ def generate_events(
             continue
         key = (bar["symbol"], bar["timeframe"])
         state = streams.setdefault(key, _StreamState())
+        stream_index = stream_positions.get(key, 0)
+        stream_positions[key] = stream_index + 1
         if state.last_timestamp is not None:
             delta = bar["timestamp_utc"] - state.last_timestamp
             if delta.total_seconds() <= 0:
@@ -389,9 +392,9 @@ def generate_events(
         state.slow_values.append(
             state.slow_ema if state.slow_ema is not None else math.nan
         )
-        stream_index = len(state.history) - 1
+        state_index = len(state.history) - 1
         if (
-            stream_index < 59
+            state_index < 59
             or state.fast_ema is None
             or state.slow_ema is None
             or state.atr14 is None
@@ -399,7 +402,7 @@ def generate_events(
         ):
             continue
         direction = _direction(state, bar)
-        if stream_index <= state.cooldown_until:
+        if state_index <= state.cooldown_until:
             continue
         active = state.pullback
         if active is None:
@@ -411,7 +414,7 @@ def generate_events(
                 if depth <= 1.0:
                     state.pullback = {
                         "direction": direction,
-                        "start": stream_index,
+                        "start": state_index,
                         "depth": depth,
                     }
             continue
@@ -421,7 +424,7 @@ def generate_events(
         depth = max(
             float(active["depth"]), _depth(direction, bar, state.fast_ema, state.atr14)
         )
-        duration = stream_index - int(active["start"]) + 1
+        duration = state_index - int(active["start"]) + 1
         if depth > 1.0 or duration > 6:
             state.pullback = None
             continue
@@ -449,7 +452,7 @@ def generate_events(
                 )
             )
             state.pullback = None
-            state.cooldown_until = stream_index + 8
+            state.cooldown_until = state_index + 8
         else:
             active["depth"] = depth
     unique: dict[str, dict[str, Any]] = {}

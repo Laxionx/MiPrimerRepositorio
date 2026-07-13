@@ -145,3 +145,14 @@ def test_future_bars_cannot_change_completed_confirmation_or_event_identity():
     observed = tcp.generate_events(altered)["events"][0]
     assert observed["event_id"] == baseline["event_id"]
     assert observed["decision_timestamp_utc"] == baseline["decision_timestamp_utc"]
+
+
+def test_post_gap_event_uses_its_absolute_stream_index_for_execution_mapping():
+    first = _long_pullback_fixture()
+    second = _long_pullback_fixture()
+    start = first[-1]["timestamp_utc"] + timedelta(hours=2)
+    for index, row in enumerate(second):
+        row["timestamp_utc"] = start + timedelta(minutes=5 * index)
+    events = tcp.generate_events(first + second)["events"]
+    assert len(events) == 2
+    assert events[1]["stream_index"] == len(first) + 71
