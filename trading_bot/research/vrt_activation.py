@@ -23,7 +23,7 @@ PACKAGE_RELATIVE = Path("docs/research_preregistrations/next_family_selection_20
 MANIFEST_NAME = "preregistration_manifest.json"
 PROVENANCE_NAME = "feature_provenance_plan.md"
 CONFIG_NAME = "vrt_frozen_execution_configuration.json"
-RECORD_NAME = "vrt_activation_record.json"
+RECORD_NAME = "vrt_activation_record_v2.json"
 OBSERVATION_SCHEMA_NAME = "vrt_first_observation_record.schema.json"
 IMPLEMENTATION_RELATIVE = Path("trading_bot/research/volatility_regime_transition.py")
 EXECUTION_FLAGS = (
@@ -165,7 +165,8 @@ def validate_activation_package(
     _expect(manifest.get("preregistration_version"), FAMILY_ID, "preregistration family")
     _expect(manifest.get("execution_authorized_by_this_manifest"), False, "manifest execution authorization")
     _validate_execution_config(manifest, manifest_path, config)
-    _expect(record.get("schema_version"), "vrt_activation_record.v1", "activation record schema")
+    if record.get("schema_version") not in {"vrt_activation_record.v1", "vrt_activation_record.v2"}:
+        raise ActivationConformanceError("activation record schema mismatch")
     _expect(record.get("family_id"), FAMILY_ID, "activation record family")
     _expect(record.get("family_version"), FAMILY_ID, "activation record family version")
     _expect(record.get("preregistration_merge_commit"), PREREGISTRATION_COMMIT, "preregistration commit")

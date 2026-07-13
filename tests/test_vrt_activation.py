@@ -13,7 +13,7 @@ from trading_bot.research import vrt_activation
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "docs/research_preregistrations/next_family_selection_2026-07-12"
 CONFIG = PACKAGE / "vrt_frozen_execution_configuration.json"
-RECORD = PACKAGE / "vrt_activation_record.json"
+RECORD = PACKAGE / "vrt_activation_record_v2.json"
 OBSERVATION = PACKAGE / "vrt_first_observation_record.schema.json"
 
 
