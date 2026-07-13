@@ -31,3 +31,11 @@ def test_execution_is_read_only_preserves_artifacts_and_reconciles_synthetic_run
     assert result["event_funnel"]["raw_event_count"] >= result["trade_funnel"]["trade_count"]
     assert result["predictor_matrix"]["predictors"] == list(vrt_execution.STRICT_PREDICTORS)
     assert (Path(result["output_directory"]) / "first_observation_record.json").exists()
+
+
+def test_stream_feature_cache_matches_reference_at_every_eligible_event_index():
+    rows = _bars(140)
+    cached = vrt_execution._precompute_feature_rows(rows)
+
+    for index in range(len(rows)):
+        assert cached[index] == vrt_execution._feature_row(rows[: index + 1])

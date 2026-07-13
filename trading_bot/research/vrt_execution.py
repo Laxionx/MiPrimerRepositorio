@@ -78,6 +78,49 @@ def _feature_row(history: Sequence[Mapping[str, Any]]) -> dict[str, float] | Non
     }
 
 
+def _precompute_feature_rows(rows: Sequence[Mapping[str, Any]]) -> dict[int, dict[str, float] | None]:
+    """Compute frozen feature values once per stream in linear time."""
+    true_ranges: list[float] = []
+    ranges: list[float] = []
+    closes: list[float] = []
+    ratios: list[float | None] = []
+    fast = slow = None
+    result: dict[int, dict[str, float] | None] = {}
+    for index, row in enumerate(rows):
+        ranges.append(row["high_bid"] - row["low_bid"])
+        closes.append(row["close_bid"])
+        if index:
+            previous = rows[index - 1]
+            current = max(row["high_bid"] - row["low_bid"], abs(row["high_bid"] - previous["close_bid"]), abs(row["low_bid"] - previous["close_bid"]))
+            true_ranges.append(current)
+            if len(true_ranges) == 14:
+                fast = sum(true_ranges) / 14
+            elif len(true_ranges) > 14 and fast is not None:
+                fast = (13 * fast + current) / 14
+            if len(true_ranges) == 56:
+                slow = sum(true_ranges) / 56
+            elif len(true_ranges) > 56 and slow is not None:
+                slow = (55 * slow + current) / 56
+        ratio = None if fast is None or slow is None or slow <= 0 else fast / slow
+        ratios.append(ratio)
+        if index < 63 or ratio is None or ratios[index - 8] is None:
+            result[index] = None
+            continue
+        denominator = sum(abs(closes[position] - closes[position - 1]) for position in range(index - 18, index + 1))
+        if denominator <= 0:
+            result[index] = None
+            continue
+        mean8 = sum(ranges[-8:]) / 8
+        mean56 = sum(ranges[-56:]) / 56
+        result[index] = {
+            "atr_14_points": fast, "atr_56_points": slow, "atr_ratio_14_56": ratio,
+            "atr_ratio_change_8": ratio - ratios[index - 8], "mean_range_8_points": mean8,
+            "mean_range_56_points": mean56, "range_ratio_8_56": mean8 / mean56,
+            "efficiency_20": abs(closes[-1] - closes[-21]) / denominator,
+        }
+    return result
+
+
 def _trade(event: Mapping[str, Any], rows: Sequence[Mapping[str, Any]], features: Mapping[str, float]) -> dict[str, Any]:
     index = int(event["source_index"])
     if event["direction"] == "none":
@@ -152,6 +195,7 @@ def execute_frozen_vrt(
     streams: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in ordered:
         streams[(row["symbol"], row["timeframe"])].append(row)
+    feature_cache = {stream: _precompute_feature_rows(rows) for stream, rows in streams.items()}
     features, trades, active_until = [], [], {}
     for event in generated["events"]:
         stream = (event["symbol"], event["timeframe"])
@@ -164,7 +208,7 @@ def execute_frozen_vrt(
         if source_index <= active_until.get(stream, -1) and event["terminal_category"] == "raw":
             trades.append({**local_event, "terminal_category": "suppressed_overlap"})
             continue
-        row_features = _feature_row(streams[stream][:source_index + 1])
+        row_features = feature_cache[stream][source_index]
         if row_features is None:
             trades.append({**local_event, "terminal_category": "invalid_input"})
             continue
