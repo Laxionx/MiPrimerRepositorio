@@ -5,6 +5,7 @@ import pandas as pd
 
 from trading_bot.journal.paper_forward import PaperForwardJournal
 from trading_bot.analysis.edge_v2 import EdgeV2Diagnostics
+from trading_bot.backtest.price_units import PriceUnitContract
 from trading_bot.metrics.performance import calculate_performance_metrics
 from trading_bot.signals.aqtf import ContextEngine, EntryScorer
 from trading_bot.signals.liquidity_sweep import LiquiditySweepDetector
@@ -24,8 +25,14 @@ def load_historical_csv(path: str | Path) -> pd.DataFrame:
         return data
     data["time"] = pd.to_datetime(data["time"], utc=True, errors="raise")
     numeric = ["open", "high", "low", "close", "tick_volume"]
-    if "spread" in data.columns:
-        numeric.append("spread")
+    unit_columns = {"spread_points", "spread_price", "point_size", "tick_size"}
+    if "spread" in data.columns and "spread_points" not in data.columns:
+        raise ValueError("ambiguous legacy spread column; export spread_points and spread_price explicitly")
+    present_units = unit_columns.intersection(data.columns)
+    if present_units and present_units != unit_columns:
+        missing_units = sorted(unit_columns.difference(data.columns))
+        raise ValueError(f"incomplete price-unit contract in CSV: {', '.join(missing_units)}")
+    numeric.extend(sorted(present_units))
     data[numeric] = data[numeric].apply(pd.to_numeric, errors="raise")
     return data.sort_values("time").reset_index(drop=True)
 
@@ -43,12 +50,15 @@ class BacktestRunner:
         context_engine: Any | None = None,
         entry_scorer: Any | None = None,
         edge_v2_diagnostics: Any | None = None,
-        default_spread: float = 0.0,
+        price_units: PriceUnitContract | None = None,
         slippage_points: float = 0.0,
+        slippage_price: float | None = None,
         warmup_bars: int = 21,
     ):
-        if default_spread < 0 or slippage_points < 0:
-            raise ValueError("spread and slippage must be non-negative")
+        if slippage_points < 0 or (slippage_price is not None and slippage_price < 0):
+            raise ValueError("slippage must be non-negative")
+        if slippage_price is not None and slippage_points:
+            raise ValueError("declare slippage in either broker points or price units, not both")
         self.symbol = symbol
         self.timeframe = timeframe
         self.journal = journal
@@ -56,8 +66,9 @@ class BacktestRunner:
         self.context_engine = context_engine or ContextEngine()
         self.entry_scorer = entry_scorer or EntryScorer()
         self.edge_v2_diagnostics = edge_v2_diagnostics or EdgeV2Diagnostics()
-        self.default_spread = default_spread
+        self.price_units = price_units
         self.slippage_points = slippage_points
+        self._explicit_slippage_price = slippage_price
         self.warmup_bars = warmup_bars
 
     def run(self, data: pd.DataFrame) -> dict[str, int | float | None]:
@@ -104,7 +115,7 @@ class BacktestRunner:
             h1_data = self._completed_h1(history, bar["time"])
             context = self.context_engine.evaluate(h1_data)
             market_state = {
-                "spread": self._spread(bar),
+                "spread": self._spread_points(bar),
                 "volatility": self._volatility(history),
             }
             atr = self._atr(history)
@@ -139,6 +150,8 @@ class BacktestRunner:
                 "atr": atr,
                 "candle_range": candle_range,
                 "sweep_level": self._sweep_level(signal_report),
+                "setup_close": float(bar["close"]),
+                "setup_timestamp": bar["time"].isoformat(),
             }
 
         if open_trade is not None:
@@ -165,17 +178,39 @@ class BacktestRunner:
     ) -> dict[str, Any]:
         setup = pending["setup"]
         direction = str(setup["type"])
-        cost = self._spread(bar) + self.slippage_points
-        entry = float(bar["open"]) + cost if direction == "LONG" else float(
+        costs = self._transaction_costs(bar)
+        entry = float(bar["open"]) + costs["spread_price"] + costs["slippage_price"] if direction == "LONG" else float(
             bar["open"]
-        ) - cost
+        ) - costs["spread_price"] - costs["slippage_price"]
+        stop = float(setup["stop_loss"])
+        target = float(setup["take_profit"])
+        geometry_valid = stop < entry < target if direction == "LONG" else target < entry < stop
+        if not geometry_valid:
+            self.journal.record_post_cost_block(
+                {
+                    "timestamp": bar["time"].isoformat(),
+                    "symbol": self.symbol,
+                    "timeframe": self.timeframe,
+                    "direction": direction,
+                    "block_reason": "invalid_post_cost_trade_geometry",
+                    "setup_timestamp": pending["setup_timestamp"],
+                    "setup_close": pending["setup_close"],
+                    "next_bar_open": float(bar["open"]),
+                    "effective_entry": entry,
+                    "stop_loss": stop,
+                    "take_profit": target,
+                    **costs,
+                }
+            )
+            return None
         return {
             **pending,
             "direction": direction,
             "entry": entry,
             "timestamp_open": bar["time"].isoformat(),
             "open_index": bar_index,
-            "spread": self._spread(bar),
+            "spread": costs["spread_points"],
+            **costs,
             "entry_distance_from_sweep": (
                 abs(entry - float(pending["sweep_level"]))
                 if pending["sweep_level"] is not None
@@ -217,9 +252,13 @@ class BacktestRunner:
         risk = abs(trade["entry"] - float(setup["stop_loss"]))
         reward = abs(float(setup["take_profit"]) - trade["entry"])
         outcome = "win" if pnl > 0 else "loss" if pnl < 0 else "breakeven"
+        if exit_reason == "take_profit" and pnl <= 0:
+            raise ValueError("take-profit exit must produce positive PnL after geometry validation")
+        if exit_reason == "stop_loss" and pnl >= 0:
+            raise ValueError("stop-loss exit must produce negative PnL after geometry validation")
         context = trade["context"]
         return {
-            "trade_id": f"{self.symbol}-{trade['timestamp_open']}",
+            "trade_id": self._trade_id(trade),
             "timestamp_open": trade["timestamp_open"],
             "timestamp_close": bar["time"].isoformat(),
             "symbol": self.symbol,
@@ -242,6 +281,12 @@ class BacktestRunner:
             "distance_to_h1_mid": context["distance_to_h1_mid"],
             "extension_atr": trade["entry_quality"].get("extension_atr"),
             "spread": trade["spread"],
+            "spread_points": trade["spread_points"],
+            "point_size": trade["point_size"],
+            "tick_size": trade["tick_size"],
+            "spread_price": trade["spread_price"],
+            "slippage_points": trade["slippage_points"],
+            "slippage_price": trade["slippage_price"],
             "volatility": trade["market_state"]["volatility"],
             "atr": trade["atr"],
             "candle_range": trade["candle_range"],
@@ -254,9 +299,58 @@ class BacktestRunner:
             **trade["edge_v2"],
         }
 
-    def _spread(self, bar: pd.Series) -> float:
-        spread = bar.get("spread")
-        return self.default_spread if pd.isna(spread) else float(spread)
+    def _transaction_costs(self, bar: pd.Series) -> dict[str, float]:
+        spread_points = self._spread_points(bar)
+        point_size = bar.get("point_size")
+        spread_price = bar.get("spread_price")
+        tick_size = bar.get("tick_size")
+        if spread_points > 0 and (point_size is None or pd.isna(point_size)):
+            raise ValueError("positive spread_points requires authoritative point_size metadata")
+        if point_size is None or pd.isna(point_size):
+            if self.price_units is None:
+                point_size_value = 0.0
+                tick_size_value = 0.0
+            else:
+                point_size_value = self.price_units.point_size
+                tick_size_value = self.price_units.tick_size
+        else:
+            point_size_value = float(point_size)
+            tick_size_value = float(tick_size) if tick_size is not None and not pd.isna(tick_size) else point_size_value
+        contract = self.price_units or (PriceUnitContract(point_size_value, tick_size_value) if point_size_value else None)
+        if spread_price is None or pd.isna(spread_price):
+            if spread_points:
+                raise ValueError("positive spread_points requires spread_price metadata")
+            spread_price_value = 0.0
+        else:
+            spread_price_value = float(spread_price)
+        if contract is not None and not pd.isna(spread_price) and abs(contract.spread_price(spread_points) - spread_price_value) > 1e-12:
+            raise ValueError("spread_price does not match spread_points multiplied by point_size")
+        if self._explicit_slippage_price is not None:
+            slippage_price_value = float(self._explicit_slippage_price)
+        elif self.slippage_points:
+            if contract is None:
+                raise ValueError("slippage_points requires authoritative point_size metadata")
+            slippage_price_value = contract.slippage_price(self.slippage_points)
+        else:
+            slippage_price_value = 0.0
+        return {
+            "spread_points": spread_points,
+            "point_size": point_size_value,
+            "tick_size": tick_size_value,
+            "spread_price": spread_price_value,
+            "slippage_points": float(self.slippage_points),
+            "slippage_price": slippage_price_value,
+        }
+
+    @staticmethod
+    def _spread_points(bar: pd.Series) -> float:
+        spread = bar.get("spread_points", 0.0)
+        return 0.0 if pd.isna(spread) else float(spread)
+
+    def _trade_id(self, trade: dict[str, Any]) -> str:
+        return "-".join(
+            (self.symbol, self.timeframe, str(trade["timestamp_open"]), str(trade["direction"]), str(trade["open_index"]))
+        )
 
     @staticmethod
     def _volatility(history: pd.DataFrame) -> float:

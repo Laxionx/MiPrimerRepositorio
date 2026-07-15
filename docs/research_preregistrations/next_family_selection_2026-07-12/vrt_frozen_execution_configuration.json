@@ -1,0 +1,66 @@
+{
+  "schema_version": "vrt_frozen_execution_configuration.v1",
+  "family_id": "volatility-regime-transition-vrt-20260712-v1",
+  "family_version": "volatility-regime-transition-vrt-20260712-v1",
+  "preregistration_manifest_path": "docs/research_preregistrations/next_family_selection_2026-07-12/preregistration_manifest.json",
+  "preregistration_manifest_sha256": "7aeabb8837b1f5edc81a0f2b10fab159ae691920026bc5668f5eb8f84ba7a905",
+  "symbols_timeframes": ["XAUUSD:M5", "XAUUSD:M15", "XAUUSD:H1", "EURUSD:M5", "EURUSD:M15", "GBPUSD:M5", "GBPUSD:M15", "US30:M5", "US30:M15"],
+  "temporal_split": {
+    "development": ["2026-01-01T00:00:00Z", "2026-04-30T23:59:59Z"],
+    "internal_validation": ["2026-05-01T00:00:00Z", "2026-07-10T21:00:00Z"],
+    "prospective": {"start": "activation_timestamp_utc_only", "duration": "three_complete_calendar_months", "pre_activation_data_is_prospective": false}
+  },
+  "detector": {
+    "atr": {"fast_period": 14, "slow_period": 56, "method": "wilder", "initialization": "arithmetic_mean_of_first_n_true_ranges", "recurrence": "((n-1)*atr_previous+tr_current)/n"},
+    "threshold": {"value": 1.2, "unit": "dimensionless", "above_operator": ">=", "below_operator": "<"},
+    "ratio": "atr_14_points/atr_56_points",
+    "true_range": "max(high_t-low_t,abs(high_t-close_t_minus_1),abs(low_t-close_t_minus_1))",
+    "minimum_contiguous_valid_completed_bars": 64,
+    "decision_timestamp": "utc_close_timestamp_of_completed_bar_t",
+    "initial_state": "after_64_contiguous_valid_completed_bars_initialize_to_below_or_above_without_event",
+    "transition_start_and_confirmation": "same_completed_bar_prior_state_below_and_ratio_gte_1_20",
+    "persistence_completed_bars": 1,
+    "cooldown_completed_bars": 0,
+    "transition_end_reset_rearm": "first_subsequent_eligible_ratio_lt_1_20_sets_below_and_rearms",
+    "duplicate_suppression": "retain_first_canonical_id_in_ascending_source_row_order",
+    "overlap_policy": "raw_event_stream_retained; outcome_can_mark_suppressed_overlap",
+    "gap_rule": "timestamp_delta_gt_three_nominal_timeframe_durations_resets_to_unavailable",
+    "stream_isolation": "independent_per_symbol_and_timeframe",
+    "implementation_numeric_semantics": "unrounded_ieee754_binary64",
+    "event_identity": {"preimage": "family_id|preregistration_version|symbol|timeframe|decision_timestamp_utc|below_to_above|direction|atr14=14|atr56=56|threshold=1.20|warmup=64", "algorithm": "sha256_utf8_lowercase_hex"},
+    "ordering": ["decision_timestamp_utc", "symbol", "timeframe", "event_id"],
+    "states": {"below": "ratio_lt_1_20", "above": "ratio_gte_1_20", "unavailable": "invalid_missing_duplicate_nonmonotonic_or_gapped_stream_or_warmup"},
+    "direction": {"long": "close_t_gt_close_t_minus_8", "short": "close_t_lt_close_t_minus_8", "equality": "raw_event_direction_none_terminal_no_direction"},
+    "input_fields": ["timestamp_utc", "symbol", "timeframe", "open_bid", "high_bid", "low_bid", "close_bid", "spread_points", "point_size"],
+    "session_boundary_behavior": "no_special_behavior; continuity_rule_only"
+  },
+  "strict_predictors": {
+    "names": ["atr_14_points", "atr_56_points", "atr_ratio_14_56", "atr_ratio_change_8", "mean_range_8_points", "mean_range_56_points", "range_ratio_8_56", "efficiency_20"],
+    "common_missing_policy": "unavailable_fail_closed_no_imputation",
+    "gap_behavior": "reset_detector_state_and_make_dependent_field_unavailable",
+    "outcome_only_excluded": ["next_bar_open_bid", "spread_price", "slippage_price", "effective_entry", "effective_exit", "stop", "target", "risk_price", "reward", "pnl", "r_multiple", "mfe", "mae", "future_bars", "terminal_outcome", "sweep_depth", "reclaim_speed"]
+  },
+  "completed_bar_policy": "completed_bar_t_only; no_partial_or_future_bar_dependency",
+  "missing_value_policy": "unavailable_fail_closed_no_imputation",
+  "point_size_tick_size_policy": "spread_points_times_point_size; tick_size_substitution_forbidden",
+  "outcome_contract": {
+    "entry_bar": "t_plus_1", "spread_price": "spread_points_times_point_size", "slippage_price": "0.25_times_spread_price_per_entry_and_exit", "tick_size_substitution_forbidden": true,
+    "long_effective_entry": "open_bid_e+spread_price_e+slippage_price_e", "short_effective_entry": "open_bid_e-slippage_price_e", "risk_price": "1.50_times_atr_14_points_t", "target_multiple": 2.0,
+    "long_stop_target": ["entry-risk_price", "entry+2*risk_price"], "short_stop_target": ["entry+risk_price", "entry-2*risk_price"],
+    "same_bar_tp_sl": "sl_first", "max_holding_bars": 48, "r_formula": "direction_sign_times_effective_exit_minus_effective_entry_divided_by_risk_price",
+    "terminal_categories": ["invalid_input", "no_direction", "excluded_post_cost_geometry", "suppressed_overlap", "data_unavailable", "duplicate_event", "tp", "sl", "time_exit_48"],
+    "unresolved_trade": "time_exit_48_if_data_available_else_data_unavailable", "canonical_trade_identity": "sha256_utf8_event_id_entry_timestamp_utc_outcome_policy_v1",
+    "breakeven": "exact_zero_effective_pnl_time_exit_only", "effective_exit": "long_gross_exit_minus_slippage;short_gross_exit_plus_slippage", "long_tp_sl_detection": ["high_bid_gte_target", "low_bid_lte_stop"], "short_tp_sl_detection": ["low_bid_plus_spread_lte_target", "high_bid_plus_spread_gte_stop"], "post_cost_geometry": "risk_price_must_be_finite_and_positive", "pnl_reconciliation": "price_pnl_per_unit_equals_R_times_risk_price", "time_exit_effective": "long_close_bid_minus_slippage;short_close_bid_plus_spread_plus_slippage", "terminal_funnel_reconciliation": "raw_event_count_equals_sum_mutually_exclusive_terminal_categories"
+  },
+  "position_overlap_policy": "one_active_outcome_per_symbol_timeframe_until_first_exit_or_bar_48; later_raw_events_suppressed_overlap",
+  "gates": {
+    "minimum_support": {"development": 600, "internal": 300, "min_internal_setups_in_five_runs": 30},
+    "stability": {"run_count": 9, "min_nonnegative_median_runs": 5, "minimum_median_R": -0.2},
+    "temporal": {"development_mean_R_min": 0.0, "development_median_R_min": 0.0, "internal_mean_R_min": -0.05, "internal_median_R_min": 0.0},
+    "multiple_comparison": {"feature_count": 8, "method": "bonferroni", "two_sided_alpha": 0.00625}
+  },
+  "scorecard_policy": "every_support_stability_temporal_cost_and_multiplicity_gate_must_pass",
+  "candidate_hypothesis_policy": "only_a_fully_passing_retrospective_scorecard_may_create_a_candidate_discriminator_hypothesis_never_a_trading_rule",
+  "closure_policy": "mandatory_on_any_required_gate_failure; preserve_evidence_and_forbid_rescue_under_same_family_version",
+  "execution_authorized": false
+}

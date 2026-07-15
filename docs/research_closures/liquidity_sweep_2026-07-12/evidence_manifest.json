@@ -1,0 +1,758 @@
+{
+    "schema_version":  "aqtf_liquidity_sweep_closure_evidence.v1",
+    "closure_id":  "liquidity-sweep-closure-20260712",
+    "canonical_code_commit":  "5a8c2f51fe0294a742ec04460338eddbe7d9f493",
+    "original_temporary_source":  "C:\\Users\\USER\\AppData\\Local\\Temp\\mt5-edge-v3-strict-rerun-20260712-021000-retry1",
+    "durable_destination":  "C:\\Users\\USER\\Documents\\Codex\\ResearchEvidence\\mt5-algorithmic-lab\\liquidity-sweep-closure-20260712\\evidence_original",
+    "copied_at_utc":  "2026-07-12T12:36:40.0097258Z",
+    "copy_verification":  {
+                              "source_file_count":  76,
+                              "destination_file_count":  76,
+                              "all_sha256_match":  true
+                          },
+    "closure_package_verification":  {
+                                        "source_root":  "docs\\research_closures\\liquidity_sweep_2026-07-12",
+                                        "durable_destination":  "C:\\Users\\USER\\Documents\\Codex\\ResearchEvidence\\mt5-algorithmic-lab\\liquidity-sweep-closure-20260712\\closure_package",
+                                        "README.md":  {
+                                                          "source_sha256":  "7bb6975d66d8d5213044c0ff00d0293f0771bf1382ef67fb9571fe4232de1fec",
+                                                          "destination_sha256":  "7bb6975d66d8d5213044c0ff00d0293f0771bf1382ef67fb9571fe4232de1fec",
+                                                          "destination_match":  true
+                                                      }
+                                    },
+    "expected_artifact_inventory":  {
+                                        "mt5_history_manifests":  {
+                                                                      "present":  9,
+                                                                      "expected":  9
+                                                                  },
+                                        "mt5_history_csvs":  {
+                                                                 "present":  9,
+                                                                 "expected":  9
+                                                             },
+                                        "batch_summary":  {
+                                                              "present":  1,
+                                                              "expected":  1
+                                                          },
+                                        "trade_journals":  {
+                                                               "present":  8,
+                                                               "expected":  "8; US30 M15 opened no trades"
+                                                           },
+                                        "feature_timing_provenance":  {
+                                                                          "present":  1,
+                                                                          "expected":  1
+                                                                      },
+                                        "strict_feature_matrix":  {
+                                                                      "present":  1,
+                                                                      "expected":  1
+                                                                  },
+                                        "edge_v3_discriminator_report":  {
+                                                                             "present":  1,
+                                                                             "expected":  1
+                                                                         },
+                                        "temporal_train_test_audit":  {
+                                                                          "present":  1,
+                                                                          "expected":  1
+                                                                      },
+                                        "robustness_scorecard":  {
+                                                                     "present":  1,
+                                                                     "expected":  1
+                                                                 },
+                                        "edge_v4_setup_failure_audit":  {
+                                                                            "present":  1,
+                                                                            "expected":  1
+                                                                        },
+                                        "trade_invariant_report":  {
+                                                                       "present":  0,
+                                                                       "expected":  "not emitted as a standalone source artifact; reconstructed from journals in committed TRADE_INVARIANT_SUMMARY.md"
+                                                                   },
+                                        "command_logs":  {
+                                                             "present":  2,
+                                                             "expected":  2
+                                                         }
+                                    },
+    "artifacts":  [
+                      {
+                          "relative_path":  "batch.stderr.log",
+                          "file_type":  "log",
+                          "bytes":  0,
+                          "sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                          "apparent_role":  "execution_stderr_log",
+                          "destination_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch.stdout.log",
+                          "file_type":  "log",
+                          "bytes":  115,
+                          "sha256":  "244ba25d65d822d54907d5428e499bcae557d3a508f707176eb04b5f71e06fd4",
+                          "apparent_role":  "execution_stdout_log",
+                          "destination_sha256":  "244ba25d65d822d54907d5428e499bcae557d3a508f707176eb04b5f71e06fd4",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/edge_v2_batch_summary.json",
+                          "file_type":  "json",
+                          "bytes":  11845,
+                          "sha256":  "0482f65d85da51111fa217a4aa95ab0c561f6143361ea121539f01b10c192b48",
+                          "apparent_role":  "batch_execution_summary",
+                          "destination_sha256":  "0482f65d85da51111fa217a4aa95ab0c561f6143361ea121539f01b10c192b48",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_001_xauusd_m5/edge_v2_feature_separation.json",
+                          "file_type":  "json",
+                          "bytes":  15242,
+                          "sha256":  "ac1574d067e72aa4e6f57fe1b1d5059abde15c85b179900322953b3de9726f4b",
+                          "apparent_role":  "per_run_feature_separation_report",
+                          "destination_sha256":  "ac1574d067e72aa4e6f57fe1b1d5059abde15c85b179900322953b3de9726f4b",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_001_xauusd_m5/journal/blocked_setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  1603442,
+                          "sha256":  "daeb4c2b4d5e1b6455636569ddd8e9250cf184336b2b7105cb99920481a4c8c0",
+                          "apparent_role":  "gate_block_journal",
+                          "destination_sha256":  "daeb4c2b4d5e1b6455636569ddd8e9250cf184336b2b7105cb99920481a4c8c0",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_001_xauusd_m5/journal/daily_summary.json",
+                          "file_type":  "json",
+                          "bytes":  224,
+                          "sha256":  "187362e702220f4342600860d7b1922d2e68ad78f2b63be5b351a9e20b710571",
+                          "apparent_role":  "daily_backtest_summary",
+                          "destination_sha256":  "187362e702220f4342600860d7b1922d2e68ad78f2b63be5b351a9e20b710571",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_001_xauusd_m5/journal/setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  178389,
+                          "sha256":  "89b71f292bb37d25f757403f565e724e8944f5ff6d6ea2f75b1f4f64e561810d",
+                          "apparent_role":  "setup_journal",
+                          "destination_sha256":  "89b71f292bb37d25f757403f565e724e8944f5ff6d6ea2f75b1f4f64e561810d",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_001_xauusd_m5/journal/trades.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  433734,
+                          "sha256":  "4b1a94dae507867be63cc18fb209a909de5ad9c9a64ef08635eae2cec76a8eb0",
+                          "apparent_role":  "trade_journal",
+                          "destination_sha256":  "4b1a94dae507867be63cc18fb209a909de5ad9c9a64ef08635eae2cec76a8eb0",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_001_xauusd_m5/mt5_history.csv",
+                          "file_type":  "csv",
+                          "bytes":  2902847,
+                          "sha256":  "feb2ead1685dcea9c98c6bbad754b66fb82aa60750b79b93f4f97c0756f850c0",
+                          "apparent_role":  "raw_and_filtered_mt5_history_csv",
+                          "destination_sha256":  "feb2ead1685dcea9c98c6bbad754b66fb82aa60750b79b93f4f97c0756f850c0",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_001_xauusd_m5/mt5_history_manifest.json",
+                          "file_type":  "json",
+                          "bytes":  32361,
+                          "sha256":  "f0e98af1796ff50a5234a31927beb7f79b9cb3657f3f6e74444c77199fa1a482",
+                          "apparent_role":  "paginated_mt5_history_manifest",
+                          "destination_sha256":  "f0e98af1796ff50a5234a31927beb7f79b9cb3657f3f6e74444c77199fa1a482",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_002_xauusd_m15/edge_v2_feature_separation.json",
+                          "file_type":  "json",
+                          "bytes":  15138,
+                          "sha256":  "0bbcb77de53cc7c136454452647cd98b5991fa19750e22fb646f68e592ed00ee",
+                          "apparent_role":  "per_run_feature_separation_report",
+                          "destination_sha256":  "0bbcb77de53cc7c136454452647cd98b5991fa19750e22fb646f68e592ed00ee",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_002_xauusd_m15/journal/blocked_setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  594011,
+                          "sha256":  "8bfa4f1d4424da6fbdb88b1213963dc1e38110fb888f28e92314e0f916b9673c",
+                          "apparent_role":  "gate_block_journal",
+                          "destination_sha256":  "8bfa4f1d4424da6fbdb88b1213963dc1e38110fb888f28e92314e0f916b9673c",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_002_xauusd_m15/journal/daily_summary.json",
+                          "file_type":  "json",
+                          "bytes":  222,
+                          "sha256":  "6356775f2be1fbf90d63b4f51bd0d3e5f52c8bdbdc1050a7752821706acffaad",
+                          "apparent_role":  "daily_backtest_summary",
+                          "destination_sha256":  "6356775f2be1fbf90d63b4f51bd0d3e5f52c8bdbdc1050a7752821706acffaad",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_002_xauusd_m15/journal/setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  60175,
+                          "sha256":  "26db6c641524f14d63c8e3de6b641ccefa7b3f78ee262685700ff1d35fab9dc0",
+                          "apparent_role":  "setup_journal",
+                          "destination_sha256":  "26db6c641524f14d63c8e3de6b641ccefa7b3f78ee262685700ff1d35fab9dc0",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_002_xauusd_m15/journal/trades.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  57543,
+                          "sha256":  "f4dc4b28c08da0d6255698a56a9422c8245f33d605342f9fbd45a46c5ee435fc",
+                          "apparent_role":  "trade_journal",
+                          "destination_sha256":  "f4dc4b28c08da0d6255698a56a9422c8245f33d605342f9fbd45a46c5ee435fc",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_002_xauusd_m15/mt5_history.csv",
+                          "file_type":  "csv",
+                          "bytes":  970381,
+                          "sha256":  "73b4982157e6938a89b8865d075667ce206dcb49077c8e64ccb789432a849563",
+                          "apparent_role":  "raw_and_filtered_mt5_history_csv",
+                          "destination_sha256":  "73b4982157e6938a89b8865d075667ce206dcb49077c8e64ccb789432a849563",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_002_xauusd_m15/mt5_history_manifest.json",
+                          "file_type":  "json",
+                          "bytes":  30715,
+                          "sha256":  "e252bb84f35262f184d963581481a84be4f3f49ce2dcc9d183a88a108b51d81e",
+                          "apparent_role":  "paginated_mt5_history_manifest",
+                          "destination_sha256":  "e252bb84f35262f184d963581481a84be4f3f49ce2dcc9d183a88a108b51d81e",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_003_xauusd_h1/edge_v2_feature_separation.json",
+                          "file_type":  "json",
+                          "bytes":  13937,
+                          "sha256":  "4b714ce2780526805c1b8685b2866e5d9e1d5f2b02b2fc01a7214d7c45454c1a",
+                          "apparent_role":  "per_run_feature_separation_report",
+                          "destination_sha256":  "4b714ce2780526805c1b8685b2866e5d9e1d5f2b02b2fc01a7214d7c45454c1a",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_003_xauusd_h1/journal/blocked_setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  168376,
+                          "sha256":  "4e41b0b3b7096b22a63b531d80b8421c87a10fd7a54e817bec51c4a4c75020f6",
+                          "apparent_role":  "gate_block_journal",
+                          "destination_sha256":  "4e41b0b3b7096b22a63b531d80b8421c87a10fd7a54e817bec51c4a4c75020f6",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_003_xauusd_h1/journal/daily_summary.json",
+                          "file_type":  "json",
+                          "bytes":  222,
+                          "sha256":  "970fdaf409951db43aa4a49100b83f14914eb003ca0a62c66a41d80256cf7873",
+                          "apparent_role":  "daily_backtest_summary",
+                          "destination_sha256":  "970fdaf409951db43aa4a49100b83f14914eb003ca0a62c66a41d80256cf7873",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_003_xauusd_h1/journal/setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  16067,
+                          "sha256":  "fa4a5f7f796dcee9590446097652cf64d6ae5d2dcf6753c3b11ea3572426a74a",
+                          "apparent_role":  "setup_journal",
+                          "destination_sha256":  "fa4a5f7f796dcee9590446097652cf64d6ae5d2dcf6753c3b11ea3572426a74a",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_003_xauusd_h1/journal/trades.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  1402,
+                          "sha256":  "4e7da69c634f15d3f6ce8aa8c92d35d2189379e6d5d148a4ff394cf29e573855",
+                          "apparent_role":  "trade_journal",
+                          "destination_sha256":  "4e7da69c634f15d3f6ce8aa8c92d35d2189379e6d5d148a4ff394cf29e573855",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_003_xauusd_h1/mt5_history.csv",
+                          "file_type":  "csv",
+                          "bytes":  245690,
+                          "sha256":  "00c7568c51c14c8baf6f1cedaa2f3a7b82d0bc7b78d207873ff49b65a22a58ec",
+                          "apparent_role":  "raw_and_filtered_mt5_history_csv",
+                          "destination_sha256":  "00c7568c51c14c8baf6f1cedaa2f3a7b82d0bc7b78d207873ff49b65a22a58ec",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_003_xauusd_h1/mt5_history_manifest.json",
+                          "file_type":  "json",
+                          "bytes":  30207,
+                          "sha256":  "4f69a0c32094f77747e25309325710178a1f280b10e517a7e5076389159766b9",
+                          "apparent_role":  "paginated_mt5_history_manifest",
+                          "destination_sha256":  "4f69a0c32094f77747e25309325710178a1f280b10e517a7e5076389159766b9",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_004_eurusd_m5/edge_v2_feature_separation.json",
+                          "file_type":  "json",
+                          "bytes":  15279,
+                          "sha256":  "bd78cb3fac6eb17711e376bbfca6df122454924b9e56e3ffeec8ce15228c75cd",
+                          "apparent_role":  "per_run_feature_separation_report",
+                          "destination_sha256":  "bd78cb3fac6eb17711e376bbfca6df122454924b9e56e3ffeec8ce15228c75cd",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_004_eurusd_m5/journal/blocked_setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  1602725,
+                          "sha256":  "5406588d4d795e0bbddea81b5427dffdcb6c45b9108868fbc178e983c1ba4e68",
+                          "apparent_role":  "gate_block_journal",
+                          "destination_sha256":  "5406588d4d795e0bbddea81b5427dffdcb6c45b9108868fbc178e983c1ba4e68",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_004_eurusd_m5/journal/daily_summary.json",
+                          "file_type":  "json",
+                          "bytes":  257,
+                          "sha256":  "4e5a65f218b482db450ab1f467027bc77895582386badc048b572c68a3afb8b3",
+                          "apparent_role":  "daily_backtest_summary",
+                          "destination_sha256":  "4e5a65f218b482db450ab1f467027bc77895582386badc048b572c68a3afb8b3",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_004_eurusd_m5/journal/setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  178959,
+                          "sha256":  "fa53e608204979738b5c67c2c900982135bc8f620b4c1bb93e7d5b345a74b187",
+                          "apparent_role":  "setup_journal",
+                          "destination_sha256":  "fa53e608204979738b5c67c2c900982135bc8f620b4c1bb93e7d5b345a74b187",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_004_eurusd_m5/journal/trades.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  520140,
+                          "sha256":  "c36eef2a0a2f09af9cc080b53385278deae274df3543bc718b5afa6a5f561929",
+                          "apparent_role":  "trade_journal",
+                          "destination_sha256":  "c36eef2a0a2f09af9cc080b53385278deae274df3543bc718b5afa6a5f561929",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_004_eurusd_m5/mt5_history.csv",
+                          "file_type":  "csv",
+                          "bytes":  3321172,
+                          "sha256":  "204214ac915379d78afdbe1193f5aaf46e7fd6e143667e41a6898f181cce3e13",
+                          "apparent_role":  "raw_and_filtered_mt5_history_csv",
+                          "destination_sha256":  "204214ac915379d78afdbe1193f5aaf46e7fd6e143667e41a6898f181cce3e13",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_004_eurusd_m5/mt5_history_manifest.json",
+                          "file_type":  "json",
+                          "bytes":  9463,
+                          "sha256":  "9a957c0c88b9c08b1b5693f5ec6d118f68bf4071f252fe6cacb6459daad32dcf",
+                          "apparent_role":  "paginated_mt5_history_manifest",
+                          "destination_sha256":  "9a957c0c88b9c08b1b5693f5ec6d118f68bf4071f252fe6cacb6459daad32dcf",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_005_eurusd_m15/edge_v2_feature_separation.json",
+                          "file_type":  "json",
+                          "bytes":  15202,
+                          "sha256":  "aed999aa7f777975b6c60347da4f925b9abc04ddf5856ad912e6c95399dffe24",
+                          "apparent_role":  "per_run_feature_separation_report",
+                          "destination_sha256":  "aed999aa7f777975b6c60347da4f925b9abc04ddf5856ad912e6c95399dffe24",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_005_eurusd_m15/journal/blocked_setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  614180,
+                          "sha256":  "56f139a9a451b28021a93458ed41c1ba6c9a8c9aef2590473e0c425f8018e61b",
+                          "apparent_role":  "gate_block_journal",
+                          "destination_sha256":  "56f139a9a451b28021a93458ed41c1ba6c9a8c9aef2590473e0c425f8018e61b",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_005_eurusd_m15/journal/daily_summary.json",
+                          "file_type":  "json",
+                          "bytes":  222,
+                          "sha256":  "6356775f2be1fbf90d63b4f51bd0d3e5f52c8bdbdc1050a7752821706acffaad",
+                          "apparent_role":  "daily_backtest_summary",
+                          "destination_sha256":  "6356775f2be1fbf90d63b4f51bd0d3e5f52c8bdbdc1050a7752821706acffaad",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_005_eurusd_m15/journal/post_cost_blocks.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  468,
+                          "sha256":  "f6b44a854acc10d81f93ac3dca4bb82c0be35d306605f93427fa4c6e90f40dda",
+                          "apparent_role":  "post_cost_geometry_block_journal",
+                          "destination_sha256":  "f6b44a854acc10d81f93ac3dca4bb82c0be35d306605f93427fa4c6e90f40dda",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_005_eurusd_m15/journal/setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  63420,
+                          "sha256":  "411891666f93ddc5d09f715ff598a446ad572c762fd9a701a477b5567f59d507",
+                          "apparent_role":  "setup_journal",
+                          "destination_sha256":  "411891666f93ddc5d09f715ff598a446ad572c762fd9a701a477b5567f59d507",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_005_eurusd_m15/journal/trades.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  101149,
+                          "sha256":  "9205bd6757d6f43b719cfd877983ffbe651b8c038789cec3674e2943bc6737a0",
+                          "apparent_role":  "trade_journal",
+                          "destination_sha256":  "9205bd6757d6f43b719cfd877983ffbe651b8c038789cec3674e2943bc6737a0",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_005_eurusd_m15/mt5_history.csv",
+                          "file_type":  "csv",
+                          "bytes":  1107868,
+                          "sha256":  "af67ca5a598cce38b1eb3ddb9c99055eb8072b227f0dbc5d5142a14aacd555d3",
+                          "apparent_role":  "raw_and_filtered_mt5_history_csv",
+                          "destination_sha256":  "af67ca5a598cce38b1eb3ddb9c99055eb8072b227f0dbc5d5142a14aacd555d3",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_005_eurusd_m15/mt5_history_manifest.json",
+                          "file_type":  "json",
+                          "bytes":  7920,
+                          "sha256":  "72f86da21b320b7048e14034c1760df1549e4d6a5dc0614b51fc8f1dfe67c880",
+                          "apparent_role":  "paginated_mt5_history_manifest",
+                          "destination_sha256":  "72f86da21b320b7048e14034c1760df1549e4d6a5dc0614b51fc8f1dfe67c880",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_006_gbpusd_m5/edge_v2_feature_separation.json",
+                          "file_type":  "json",
+                          "bytes":  15331,
+                          "sha256":  "5048fb67056bb7f2b751d611c8130b0e699f40194033a2d82d365cd6d1bb8008",
+                          "apparent_role":  "per_run_feature_separation_report",
+                          "destination_sha256":  "5048fb67056bb7f2b751d611c8130b0e699f40194033a2d82d365cd6d1bb8008",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_006_gbpusd_m5/journal/blocked_setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  1667943,
+                          "sha256":  "6d4aea490d81f1bb1d277bd7d34307204f6f176337f430ca65b5416463fa04ba",
+                          "apparent_role":  "gate_block_journal",
+                          "destination_sha256":  "6d4aea490d81f1bb1d277bd7d34307204f6f176337f430ca65b5416463fa04ba",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_006_gbpusd_m5/journal/daily_summary.json",
+                          "file_type":  "json",
+                          "bytes":  224,
+                          "sha256":  "682bd6d00820fee314846b8bccc58ae757087d541a10757066be42b32d75124f",
+                          "apparent_role":  "daily_backtest_summary",
+                          "destination_sha256":  "682bd6d00820fee314846b8bccc58ae757087d541a10757066be42b32d75124f",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_006_gbpusd_m5/journal/setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  181346,
+                          "sha256":  "522e6895ecd38984711b610668373858a37de3f36117d6a0a7f6672906891527",
+                          "apparent_role":  "setup_journal",
+                          "destination_sha256":  "522e6895ecd38984711b610668373858a37de3f36117d6a0a7f6672906891527",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_006_gbpusd_m5/journal/trades.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  455701,
+                          "sha256":  "33f3c72d7e154ad2c4dac9d078d0e2b40bdcf6d2442dda66cedd58a00f82143d",
+                          "apparent_role":  "trade_journal",
+                          "destination_sha256":  "33f3c72d7e154ad2c4dac9d078d0e2b40bdcf6d2442dda66cedd58a00f82143d",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_006_gbpusd_m5/mt5_history.csv",
+                          "file_type":  "csv",
+                          "bytes":  3537857,
+                          "sha256":  "9326ef3f2d8fb1ea24ec6b6f2ec211ac44bd0da8cc5d9257db8d6dcb95c2733f",
+                          "apparent_role":  "raw_and_filtered_mt5_history_csv",
+                          "destination_sha256":  "9326ef3f2d8fb1ea24ec6b6f2ec211ac44bd0da8cc5d9257db8d6dcb95c2733f",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_006_gbpusd_m5/mt5_history_manifest.json",
+                          "file_type":  "json",
+                          "bytes":  10108,
+                          "sha256":  "7301d245e3d30d2d5dbbc4a3005a821e37ead4adf858ad6923a648ff408280a0",
+                          "apparent_role":  "paginated_mt5_history_manifest",
+                          "destination_sha256":  "7301d245e3d30d2d5dbbc4a3005a821e37ead4adf858ad6923a648ff408280a0",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_007_gbpusd_m15/edge_v2_feature_separation.json",
+                          "file_type":  "json",
+                          "bytes":  15144,
+                          "sha256":  "42dcfe28e03ede12aef41073fcf0d61c8861edf1b4367cc4937471fe98d158ea",
+                          "apparent_role":  "per_run_feature_separation_report",
+                          "destination_sha256":  "42dcfe28e03ede12aef41073fcf0d61c8861edf1b4367cc4937471fe98d158ea",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_007_gbpusd_m15/journal/blocked_setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  639072,
+                          "sha256":  "d220d00b117a5fe05ec0a31d2d225f5222c451cf113d15f521e90c32287d3b14",
+                          "apparent_role":  "gate_block_journal",
+                          "destination_sha256":  "d220d00b117a5fe05ec0a31d2d225f5222c451cf113d15f521e90c32287d3b14",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_007_gbpusd_m15/journal/daily_summary.json",
+                          "file_type":  "json",
+                          "bytes":  270,
+                          "sha256":  "c076912f3d7536b6cb785cc9d9655df99b1b15fe69b002105056a250756c07fa",
+                          "apparent_role":  "daily_backtest_summary",
+                          "destination_sha256":  "c076912f3d7536b6cb785cc9d9655df99b1b15fe69b002105056a250756c07fa",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_007_gbpusd_m15/journal/setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  65376,
+                          "sha256":  "376b3fcd6243066a7b98363b68b4293c5fb09b30a7c8b10397cad704828c425e",
+                          "apparent_role":  "setup_journal",
+                          "destination_sha256":  "376b3fcd6243066a7b98363b68b4293c5fb09b30a7c8b10397cad704828c425e",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_007_gbpusd_m15/journal/trades.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  94967,
+                          "sha256":  "53dcb1b1c06547a308f233230bdfe676661ffa1d910811098eb72fe379a2d9a3",
+                          "apparent_role":  "trade_journal",
+                          "destination_sha256":  "53dcb1b1c06547a308f233230bdfe676661ffa1d910811098eb72fe379a2d9a3",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_007_gbpusd_m15/mt5_history.csv",
+                          "file_type":  "csv",
+                          "bytes":  1173328,
+                          "sha256":  "39b5e5df96ae7b79282a9d6c3284b39a7029e02143d34bc70348a3ae2c74e7ad",
+                          "apparent_role":  "raw_and_filtered_mt5_history_csv",
+                          "destination_sha256":  "39b5e5df96ae7b79282a9d6c3284b39a7029e02143d34bc70348a3ae2c74e7ad",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_007_gbpusd_m15/mt5_history_manifest.json",
+                          "file_type":  "json",
+                          "bytes":  8350,
+                          "sha256":  "e4f3e66d88da3715f2c76e3094aacf1e6710d45b74d3db2da95d5dc0dc71c92a",
+                          "apparent_role":  "paginated_mt5_history_manifest",
+                          "destination_sha256":  "e4f3e66d88da3715f2c76e3094aacf1e6710d45b74d3db2da95d5dc0dc71c92a",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_008_us30_m5/edge_v2_feature_separation.json",
+                          "file_type":  "json",
+                          "bytes":  13876,
+                          "sha256":  "8879be25358a990402da0b7f451b2156f2c6ceecc440f5c958b69676ef1f629a",
+                          "apparent_role":  "per_run_feature_separation_report",
+                          "destination_sha256":  "8879be25358a990402da0b7f451b2156f2c6ceecc440f5c958b69676ef1f629a",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_008_us30_m5/journal/blocked_setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  1733891,
+                          "sha256":  "f0b0d291a5998caec5243d05daa609fd1f8b88090bd1f8afd89438f7147ebf78",
+                          "apparent_role":  "gate_block_journal",
+                          "destination_sha256":  "f0b0d291a5998caec5243d05daa609fd1f8b88090bd1f8afd89438f7147ebf78",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_008_us30_m5/journal/daily_summary.json",
+                          "file_type":  "json",
+                          "bytes":  224,
+                          "sha256":  "b524bb2158bd83be09810a59a3a1a19fcc3dd5f8c7f0fe0567ee48ee2650a391",
+                          "apparent_role":  "daily_backtest_summary",
+                          "destination_sha256":  "b524bb2158bd83be09810a59a3a1a19fcc3dd5f8c7f0fe0567ee48ee2650a391",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_008_us30_m5/journal/setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  168719,
+                          "sha256":  "5a10585ea7675ab1ae672af08e8f01f754a541e809b3129b6538a31f21275fb6",
+                          "apparent_role":  "setup_journal",
+                          "destination_sha256":  "5a10585ea7675ab1ae672af08e8f01f754a541e809b3129b6538a31f21275fb6",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_008_us30_m5/journal/trades.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  1361,
+                          "sha256":  "46a9f68d15e2a82fd167a5cb64efb51e97c4df5a16cc1e68ffc1047671dc6a92",
+                          "apparent_role":  "trade_journal",
+                          "destination_sha256":  "46a9f68d15e2a82fd167a5cb64efb51e97c4df5a16cc1e68ffc1047671dc6a92",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_008_us30_m5/mt5_history.csv",
+                          "file_type":  "csv",
+                          "bytes":  3083928,
+                          "sha256":  "0786c23e76420ddd1457fb29bb8b0829b9a31208fd6c0d5f70dc3c99a226433b",
+                          "apparent_role":  "raw_and_filtered_mt5_history_csv",
+                          "destination_sha256":  "0786c23e76420ddd1457fb29bb8b0829b9a31208fd6c0d5f70dc3c99a226433b",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_008_us30_m5/mt5_history_manifest.json",
+                          "file_type":  "json",
+                          "bytes":  34505,
+                          "sha256":  "26455a798534047a105a674b981b2f4cccdcc499d1b6ce92000e486eec90b288",
+                          "apparent_role":  "paginated_mt5_history_manifest",
+                          "destination_sha256":  "26455a798534047a105a674b981b2f4cccdcc499d1b6ce92000e486eec90b288",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_009_us30_m15/edge_v2_feature_separation.json",
+                          "file_type":  "json",
+                          "bytes":  785,
+                          "sha256":  "608f4f1ae68bce0d7f3e5494f47470b43e9c8d4209726709061b41c9c8eda2e9",
+                          "apparent_role":  "per_run_feature_separation_report",
+                          "destination_sha256":  "608f4f1ae68bce0d7f3e5494f47470b43e9c8d4209726709061b41c9c8eda2e9",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_009_us30_m15/journal/blocked_setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  672686,
+                          "sha256":  "96c7732103e5a46150134f1ecc33f849b250c5a2f7b13da3b4d950a091381a0d",
+                          "apparent_role":  "gate_block_journal",
+                          "destination_sha256":  "96c7732103e5a46150134f1ecc33f849b250c5a2f7b13da3b4d950a091381a0d",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_009_us30_m15/journal/daily_summary.json",
+                          "file_type":  "json",
+                          "bytes":  222,
+                          "sha256":  "241f9d74268a7d4cafc57dce159026366fa1159a07a2094999637b9e6973ea78",
+                          "apparent_role":  "daily_backtest_summary",
+                          "destination_sha256":  "241f9d74268a7d4cafc57dce159026366fa1159a07a2094999637b9e6973ea78",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_009_us30_m15/journal/setups.jsonl",
+                          "file_type":  "jsonl",
+                          "bytes":  65208,
+                          "sha256":  "3e6279fbd6f07b377cb42364e972ad782ef713b31141933e7e14d4436f8351dd",
+                          "apparent_role":  "setup_journal",
+                          "destination_sha256":  "3e6279fbd6f07b377cb42364e972ad782ef713b31141933e7e14d4436f8351dd",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_009_us30_m15/mt5_history.csv",
+                          "file_type":  "csv",
+                          "bytes":  1033922,
+                          "sha256":  "067e166d88ee820d5514a1aac790fe4a91d675e04613101a2c70c826ba736304",
+                          "apparent_role":  "raw_and_filtered_mt5_history_csv",
+                          "destination_sha256":  "067e166d88ee820d5514a1aac790fe4a91d675e04613101a2c70c826ba736304",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch/run_009_us30_m15/mt5_history_manifest.json",
+                          "file_type":  "json",
+                          "bytes":  31788,
+                          "sha256":  "e5bffcb42e6eaf31df5334f7e55e17041380246159b738909e30515b78ff97f8",
+                          "apparent_role":  "paginated_mt5_history_manifest",
+                          "destination_sha256":  "e5bffcb42e6eaf31df5334f7e55e17041380246159b738909e30515b78ff97f8",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "batch_plan.json",
+                          "file_type":  "json",
+                          "bytes":  966,
+                          "sha256":  "8c744462e453d4efeb17faceb97b8d45c4d57b7c01316bc304ff280f09e30b3f",
+                          "apparent_role":  "fixed_batch_plan",
+                          "destination_sha256":  "8c744462e453d4efeb17faceb97b8d45c4d57b7c01316bc304ff280f09e30b3f",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "edge_v3/discovery.json",
+                          "file_type":  "json",
+                          "bytes":  2353607,
+                          "sha256":  "8eb1d0868c65444e7a71a7a78a3e1a6c7fe2eca31a953f310ec5c76914d0de85",
+                          "apparent_role":  "edge_v3_discriminator_report",
+                          "destination_sha256":  "8eb1d0868c65444e7a71a7a78a3e1a6c7fe2eca31a953f310ec5c76914d0de85",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "edge_v3/edge_v4_descriptive_audit.json",
+                          "file_type":  "json",
+                          "bytes":  1856474,
+                          "sha256":  "f229caeb9b9c975c016473233e3ed05eb86237a231443f8eafa69cad5c357ddd",
+                          "apparent_role":  "edge_v4_setup_failure_audit",
+                          "destination_sha256":  "f229caeb9b9c975c016473233e3ed05eb86237a231443f8eafa69cad5c357ddd",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "edge_v3/edge_v4_descriptive_trade_detail.json",
+                          "file_type":  "json",
+                          "bytes":  1293309,
+                          "sha256":  "0fb9419c26be4cfcd746275ecf4e30d7c491bc4f6861391519ef0cd2b6b4649b",
+                          "apparent_role":  "edge_v4_trade_excursion_detail",
+                          "destination_sha256":  "0fb9419c26be4cfcd746275ecf4e30d7c491bc4f6861391519ef0cd2b6b4649b",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "edge_v3/matrix.json",
+                          "file_type":  "json",
+                          "bytes":  1131106,
+                          "sha256":  "7477fedf02d42654041562389f642fb98b318c9ab6dfa95b2adddce4d7c2c554",
+                          "apparent_role":  "strict_feature_matrix",
+                          "destination_sha256":  "7477fedf02d42654041562389f642fb98b318c9ab6dfa95b2adddce4d7c2c554",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "edge_v3/matrix_manifest.json",
+                          "file_type":  "json",
+                          "bytes":  14835,
+                          "sha256":  "53c33df601364398e75543bbea8f4b0ebe128dbe3afdb4baf6df006538c3981e",
+                          "apparent_role":  "strict_matrix_manifest",
+                          "destination_sha256":  "53c33df601364398e75543bbea8f4b0ebe128dbe3afdb4baf6df006538c3981e",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "edge_v3/provenance.json",
+                          "file_type":  "json",
+                          "bytes":  48242,
+                          "sha256":  "bce4968317d3ebcbe1c6ec25b968cf81dc6335a802002458a081f7da29bb6ec4",
+                          "apparent_role":  "feature_timing_provenance_artifact",
+                          "destination_sha256":  "bce4968317d3ebcbe1c6ec25b968cf81dc6335a802002458a081f7da29bb6ec4",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "edge_v3/scorecard.json",
+                          "file_type":  "json",
+                          "bytes":  6849,
+                          "sha256":  "6231363e70870364dfa9ea01926340ee83ac4b09ba3f723a2418166a5bf32b57",
+                          "apparent_role":  "edge_v3_robustness_scorecard",
+                          "destination_sha256":  "6231363e70870364dfa9ea01926340ee83ac4b09ba3f723a2418166a5bf32b57",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "edge_v3/summary.md",
+                          "file_type":  "md",
+                          "bytes":  257,
+                          "sha256":  "6be4ab8f013954a0d29d88a0bc15a3875c206416ef2db1eccdd42e08262bcbbe",
+                          "apparent_role":  "edge_v3_scorecard_summary",
+                          "destination_sha256":  "6be4ab8f013954a0d29d88a0bc15a3875c206416ef2db1eccdd42e08262bcbbe",
+                          "destination_match":  true
+                      },
+                      {
+                          "relative_path":  "edge_v3/temporal.json",
+                          "file_type":  "json",
+                          "bytes":  940537,
+                          "sha256":  "7dcbaab83040c393f2937aa320793854af3ffc6c535f4d277623cb676a5c42f0",
+                          "apparent_role":  "edge_v3_temporal_train_test_audit",
+                          "destination_sha256":  "7dcbaab83040c393f2937aa320793854af3ffc6c535f4d277623cb676a5c42f0",
+                          "destination_match":  true
+                      }
+                  ]
+}

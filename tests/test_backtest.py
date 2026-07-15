@@ -81,7 +81,7 @@ def candles() -> pd.DataFrame:
     )
 
 
-def runner(tmp_path, *, spread=0.0, entry_scorer=None, detector=None):
+def runner(tmp_path, *, slippage_price=0.0, entry_scorer=None, detector=None):
     return BacktestRunner(
         symbol="XAUUSD",
         timeframe="M5",
@@ -89,7 +89,7 @@ def runner(tmp_path, *, spread=0.0, entry_scorer=None, detector=None):
         signal_detector=detector or OneLongSignal(),
         context_engine=AcceptedContext(),
         entry_scorer=entry_scorer or AcceptedEntry(),
-        default_spread=spread,
+        slippage_price=slippage_price,
         warmup_bars=1,
     )
 
@@ -132,6 +132,33 @@ def test_replay_never_sends_future_candles_to_signal_detector(tmp_path):
         assert max(timestamps) <= data.iloc[call_index]["time"]
 
 
+def test_completed_h1_excludes_the_in_progress_hour():
+    history = pd.DataFrame(
+        {
+            "time": pd.to_datetime(
+                [
+                    "2026-07-08T09:00:00Z",
+                    "2026-07-08T09:55:00Z",
+                    "2026-07-08T10:00:00Z",
+                    "2026-07-08T10:05:00Z",
+                ]
+            ),
+            "open": [10.0, 10.0, 20.0, 20.0],
+            "high": [11.0, 12.0, 21.0, 30.0],
+            "low": [9.0, 8.0, 19.0, 10.0],
+            "close": [10.0, 10.0, 20.0, 20.0],
+            "tick_volume": [100, 100, 100, 100],
+        }
+    )
+
+    completed = BacktestRunner._completed_h1(
+        history, pd.Timestamp("2026-07-08T10:05:00Z")
+    )
+
+    assert completed["time"].tolist() == [pd.Timestamp("2026-07-08T10:00:00Z")]
+    assert completed.iloc[0]["high"] == 12.0
+
+
 def test_same_candle_stop_and_target_uses_stop_first(tmp_path):
     runner(tmp_path).run(candles())
 
@@ -151,8 +178,8 @@ def test_same_candle_stop_and_target_uses_stop_first(tmp_path):
     assert trade["exit_reason"] == "stop_loss"
 
 
-def test_missing_spread_uses_configured_default(tmp_path):
-    runner(tmp_path, spread=0.2).run(candles())
+def test_explicit_price_slippage_is_applied_without_ambiguous_default_spread(tmp_path):
+    runner(tmp_path, slippage_price=0.2).run(candles())
 
     trade = read_jsonl(tmp_path / "trades.jsonl")[0]
     assert trade["entry"] == 10.2
